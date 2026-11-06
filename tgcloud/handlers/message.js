@@ -8,6 +8,7 @@ import {
   verificationTopics,
 } from '../schema.js';
 import { OWNER_ID, VERIFY_GROUP_ID } from '../lib/config.js';
+import { sendTemplate, readTemplate, saveTemplate, parseButtonRows, TEMPLATE_DEFS } from '../lib/templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 const requestId = (telegramId) => String(telegramId) + '-' + Date.now();
@@ -59,6 +60,7 @@ export default async function (message) {
       text: '📂 ' + (row.username ? '@' + row.username : String(row.telegramId)),
       callback_data: 'verify:open:' + row.id,
     }]);
+    keyboard.push([{ text: '✏️ Editar mensajes', callback_data: 'verify:templates' }]);
     keyboard.push([{ text: '🔄 Actualizar', callback_data: 'verify:list' }]);
     return api.sendMessage({
       chat_id: chatId,
@@ -100,6 +102,40 @@ export default async function (message) {
 
   const session = await db.select().from(verificationSessions)
     .where(eq(verificationSessions.telegramId, telegramId)).get();
+
+  if (telegramId === OWNER_ID && session?.step?.startsWith('template_')) {
+    const key = session.requestId;
+    const cfg = await readTemplate(key);
+    if (session.step === 'template_text') {
+      if (!text || text.length > 3500) return reply(chatId, 'Envía el texto de la plantilla (máximo 3500 caracteres).');
+      cfg.text = text;
+      await saveTemplate(key, cfg);
+      await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+      return api.sendMessage({ chat_id: chatId, text: '✅ Texto guardado para: ' + TEMPLATE_DEFS[key].title, reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:templates' }]] } });
+    }
+    if (session.step === 'template_buttons') {
+      try {
+        cfg.buttons = text.toLowerCase() === 'quitar' ? [] : parseButtonRows(text);
+        await saveTemplate(key, cfg);
+        await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+        return api.sendMessage({ chat_id: chatId, text: '✅ Botones guardados. Usa 👁️ Vista previa para comprobarlos.', reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:template:open:' + key }]] } });
+      } catch (error) { return reply(chatId, String(error.message || error)); }
+    }
+    if (session.step === 'template_media') {
+      let media = null;
+      if (message.photo?.length) media = { type: 'photo', fileId: message.photo[message.photo.length - 1].file_id };
+      else if (message.video) media = { type: 'video', fileId: message.video.file_id };
+      else if (message.animation) media = { type: 'animation', fileId: message.animation.file_id };
+      else if (message.document) media = { type: 'document', fileId: message.document.file_id };
+      else if (message.audio) media = { type: 'audio', fileId: message.audio.file_id };
+      else if (message.voice) media = { type: 'voice', fileId: message.voice.file_id };
+      if (!media && text.toLowerCase() !== 'quitar') return reply(chatId, 'Envía una foto, video, GIF, audio o documento; o escribe quitar para eliminar el multimedia actual.');
+      cfg.media = media;
+      await saveTemplate(key, cfg);
+      await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+      return api.sendMessage({ chat_id: chatId, text: media ? '✅ Multimedia guardado.' : '✅ Multimedia eliminado.', reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:template:open:' + key }]] } });
+    }
+  }
 
   if (telegramId === OWNER_ID && session?.step === 'admin_correction') {
     if (!text || text.length < 5 || text.length > 1500) {
