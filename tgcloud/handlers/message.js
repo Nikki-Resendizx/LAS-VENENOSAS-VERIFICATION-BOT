@@ -7,7 +7,7 @@ import {
   verificationSessions,
   verificationTopics,
 } from '../schema.js';
-import { VERIFY_GROUP_ID } from '../lib/config.js';
+import { OWNER_ID, VERIFY_GROUP_ID } from '../lib/config.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 const requestId = (telegramId) => String(telegramId) + '-' + Date.now();
@@ -47,6 +47,25 @@ export default async function (message) {
   if (text === '/start' || text.startsWith('/start ')) {
     return reply(chatId,
       'Bienvenida al proceso privado de verificacion de LAS VENENOSAS.\n\nUsa /solicitar para comenzar tu solicitud.\n\nTus evidencias seran revisadas de forma privada por el equipo autorizado.');
+  }
+
+  if (text === '/admin' || text.startsWith('/admin ')) {
+    if (telegramId !== OWNER_ID) return reply(chatId, '⛔ No tienes autorización para abrir el panel de revisión.');
+    const pending = (await db.select().from(verificationRequests).all())
+      .filter(row => row.status === 'EN_REVISION')
+      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+      .slice(0, 15);
+    const keyboard = pending.map(row => [{
+      text: '📂 ' + (row.username ? '@' + row.username : String(row.telegramId)),
+      callback_data: 'verify:open:' + row.id,
+    }]);
+    keyboard.push([{ text: '🔄 Actualizar', callback_data: 'verify:list' }]);
+    return api.sendMessage({
+      chat_id: chatId,
+      text: '🛡️ PANEL DE VERIFICACIÓN\\n\\nSolicitudes pendientes de revisión: ' + pending.length +
+        (pending.length ? '\\nSelecciona un expediente para revisarlo.' : '\\nNo hay solicitudes pendientes.'),
+      reply_markup: { inline_keyboard: keyboard },
+    });
   }
 
   if (text === '/cancelar') {
@@ -194,6 +213,12 @@ export default async function (message) {
       chat_id: VERIFY_GROUP_ID,
       message_thread_id: Number(topic.topicId),
       text: '🧾 REFERENCIAS DE VENTAS recibidas. El expediente está completo y pendiente de revisión administrativa.',
+      reply_markup: { inline_keyboard: [[
+        { text: '✅ Aprobar', callback_data: 'verify:approve:' + session.requestId },
+        { text: '📝 Solicitar corrección', callback_data: 'verify:correction:' + session.requestId },
+      ], [
+        { text: '❌ Rechazar', callback_data: 'verify:reject:' + session.requestId },
+      ]] },
     });
     await db.update(verificationRequests).set({
       status: 'EN_REVISION',
