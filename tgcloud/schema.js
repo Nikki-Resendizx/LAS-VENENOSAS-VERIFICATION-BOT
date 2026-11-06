@@ -63,3 +63,12 @@ export const verificationTopics = table('verification_topics', {
   topicId: integer('topic_id').notNull(),
   createdAt: integer('created_at').notNull(),
 });
+
+
+// Estado conversacional persistente para continuar solicitudes entre mensajes.
+export const verificationSessions = table('verification_sessions', {
+  telegramId: integer('telegram_id').primaryKey(),
+  requestId: text('request_id').notNull(),
+  step: text('step').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
