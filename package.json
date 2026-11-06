@@ -6,7 +6,7 @@
   "description": "Bot serverless de solicitudes y verificación privada para LAS VENENOSAS.",
   "engines": { "node": ">=20" },
   "scripts": {
-    "check": "node --check tgcloud/schema.js && node --check tgcloud/handlers/message.js",
+    "check": "node --check tgcloud/schema.js && node --check tgcloud/handlers/message.js && node --check tgcloud/handlers/callback_query.js",
     "validate": "npm run check"
   },
   "devDependencies": {
