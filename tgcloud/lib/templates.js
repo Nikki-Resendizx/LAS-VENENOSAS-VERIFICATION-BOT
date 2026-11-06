@@ -61,7 +61,7 @@ export function parseButtonRows(input) {
       if (idx < 1) throw new Error('Cada botón debe tener el formato Texto - URL.');
       const text = part.slice(0, idx).trim();
       const url = part.slice(idx + 3).trim();
-      if (!text || !/^https?:\\/\\//i.test(url)) throw new Error('Cada botón necesita un título y un enlace http o https válido.');
+      if (!text || !/^https?:\/\//i.test(url)) throw new Error('Cada botón necesita un título y un enlace http o https válido.');
       return { text, url };
     });
     rows.push(row);
