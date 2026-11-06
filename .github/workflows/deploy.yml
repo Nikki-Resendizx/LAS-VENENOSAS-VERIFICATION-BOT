@@ -1,0 +1,76 @@
+name: Validate and deploy LAS VENENOSAS Verification Bot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: las-venenosas-verification-bot-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Telegram Serverless modules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run validate
+      - name: Check Telegram Serverless CLI
+        run: npx tgcloud --help
+
+  deploy:
+    name: Deploy to Telegram Serverless
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name != 'pull_request'
+    env:
+      TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Require Telegram Serverless credentials
+        if: env.TGCLOUD_TOKEN == ''
+        run: |
+          echo "::error::TGCLOUD_TOKEN no está configurado en Settings > Secrets and variables > Actions."
+          exit 1
+      - name: Sync and deploy safely
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            echo "Telegram Serverless deploy attempt $attempt of 3"
+            npx tgcloud fetch
+            if npx tgcloud push; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Falló la sincronización; se vuelve a obtener el estado remoto antes de reintentar."
+              sleep 2
+            fi
+          done
+          echo "::error::No se pudo completar el despliegue tras 3 intentos."
+          exit 1
+      - name: Apply safe database migrations
+        run: npx tgcloud migrate --safe
+      - name: Synchronize Telegram webhook
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if npx tgcloud webhook sync; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep 2; fi
+          done
+          echo "::error::No se pudo sincronizar el webhook."
+          exit 1
