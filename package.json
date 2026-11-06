@@ -1,14 +1,15 @@
 {
   "name": "las-venenosas-verification-bot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Bot serverless de solicitudes y verificación privada para LAS VENENOSAS.",
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": { "node": ">=20" },
   "scripts": {
-    "start": "node server.js",
-    "check": "node --check api/telegram-webhook.js"
+    "check": "node --check tgcloud/schema.js && node --check tgcloud/handlers/message.js",
+    "validate": "npm run check"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "^0.2.0"
   }
 }
