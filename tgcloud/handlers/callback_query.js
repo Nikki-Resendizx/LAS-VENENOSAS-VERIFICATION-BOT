@@ -103,7 +103,18 @@ async function handleDecision(query, action, requestId) {
     ? '🎉 Tu solicitud de verificación para LAS VENENOSAS fue aprobada. El equipo te indicará los siguientes pasos para tu perfil.'
     : 'Tu solicitud de verificación para LAS VENENOSAS fue rechazada. Si consideras que hubo un error, contacta al equipo administrativo.';
   try {
-    await api.sendMessage({ chat_id: row.telegramId, text: applicantText });
+    await api.sendMessage({
+      chat_id: row.telegramId,
+      text: applicantText,
+      ...(action === 'approve' ? {
+        reply_markup: {
+          inline_keyboard: [[{
+            text: '🌐 Abrir WebApp de Registro',
+            url: 'https://registro-verifiedmodels.vercel.app',
+          }]],
+        },
+      } : {}),
+    });
   } catch (error) {
     console.log('No se pudo notificar la resolución al solicitante:', String(error));
   }
