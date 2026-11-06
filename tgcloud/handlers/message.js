@@ -100,6 +100,43 @@ export default async function (message) {
 
   const session = await db.select().from(verificationSessions)
     .where(eq(verificationSessions.telegramId, telegramId)).get();
+
+  if (telegramId === OWNER_ID && session?.step === 'admin_correction') {
+    if (!text || text.length < 5 || text.length > 1500) {
+      return reply(chatId, 'Escribe una indicación de corrección de entre 5 y 1500 caracteres.');
+    }
+    const request = await db.select().from(verificationRequests)
+      .where(eq(verificationRequests.id, session.requestId)).get();
+    if (!request) {
+      await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+      return reply(chatId, 'No encontré el expediente asociado. La sesión de corrección se cerró.');
+    }
+    const timestamp = now();
+    await db.update(verificationRequests).set({
+      status: 'REQUIERE_CORRECCION',
+      updatedAt: timestamp,
+    }).where(eq(verificationRequests.id, session.requestId)).run();
+    await db.insert(verificationAudit).values({
+      id: session.requestId + '-correction-' + timestamp,
+      requestId: session.requestId,
+      actorTelegramId: telegramId,
+      action: 'CORRECCION_SOLICITADA',
+      details: JSON.stringify({ note: text }),
+      createdAt: timestamp,
+    }).run();
+    try {
+      await api.sendMessage({
+        chat_id: request.telegramId,
+        text: '📝 Tu expediente de LAS VENENOSAS requiere una corrección.\\n\\nIndicación del equipo: ' + text +
+          '\\n\\nPor favor, conserva este mensaje y espera las instrucciones del equipo para reenviar el elemento solicitado.',
+      });
+    } catch (error) {
+      console.log('No se pudo notificar la corrección al solicitante:', String(error));
+    }
+    await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+    return reply(chatId, '✅ Solicitud de corrección enviada a la persona solicitante y registrada en auditoría.');
+  }
+
   if (!session) return;
 
   if (session.step === 'edad') {
