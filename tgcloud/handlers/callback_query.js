@@ -6,6 +6,7 @@ import {
   verificationSessions,
 } from '../schema.js';
 import { OWNER_ID } from '../lib/config.js';
+import { readTemplate, sendTemplate, TEMPLATE_DEFS } from '../lib/templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -43,6 +44,43 @@ async function showRequest(query, requestId) {
     ]] },
   });
   await answer(query, 'Expediente abierto.');
+}
+
+async function setAdminTemplateSession(key, step) {
+  const current = await db.select().from(verificationSessions)
+    .where(eq(verificationSessions.telegramId, OWNER_ID)).get();
+  const values = { requestId: key, step, updatedAt: now() };
+  if (current) await db.update(verificationSessions).set(values)
+    .where(eq(verificationSessions.telegramId, OWNER_ID)).run();
+  else await db.insert(verificationSessions).values({ telegramId: OWNER_ID, ...values }).run();
+}
+
+async function showTemplates(chatId) {
+  const rows = Object.entries(TEMPLATE_DEFS).map(([key, item]) => [{
+    text: item.title, callback_data: 'verify:template:open:' + key,
+  }]);
+  rows.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+  return api.sendMessage({ chat_id: chatId, text: '✏️ EDITOR DE MENSAJES\\n\\nSelecciona qué mensaje deseas personalizar. Cada plantilla permite editar texto, botones y multimedia, además de probar una vista previa.', reply_markup: { inline_keyboard: rows } });
+}
+
+async function showTemplateEditor(chatId, key) {
+  const def = TEMPLATE_DEFS[key];
+  if (!def) return api.sendMessage({ chat_id: chatId, text: 'Plantilla no reconocida.' });
+  const cfg = await readTemplate(key);
+  return api.sendMessage({
+    chat_id: chatId,
+    text: def.title + '\\n\\nTexto: ' + (cfg.text || def.fallback).slice(0, 700) +
+      '\\nBotones: ' + (cfg.buttons?.length ? cfg.buttons.reduce((n, row) => n + row.length, 0) : 0) +
+      '\\nMultimedia: ' + (cfg.media?.type || 'ninguno') +
+      '\\n\\nElige qué deseas modificar o prueba cómo se verá.',
+    reply_markup: { inline_keyboard: [
+      [{ text: '📝 Modificar texto', callback_data: 'verify:template:edittext:' + key }],
+      [{ text: '🔘 Modificar botones', callback_data: 'verify:template:editbuttons:' + key }],
+      [{ text: '🖼️ Modificar multimedia', callback_data: 'verify:template:editmedia:' + key }],
+      [{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }],
+      [{ text: '↩️ Volver', callback_data: 'verify:templates' }],
+    ] },
+  });
 }
 
 async function handleDecision(query, action, requestId) {
@@ -99,22 +137,15 @@ async function handleDecision(query, action, requestId) {
     createdAt: timestamp,
   }).run();
 
-  const applicantText = action === 'approve'
-    ? '🎉 Tu solicitud de verificación para LAS VENENOSAS fue aprobada. El equipo te indicará los siguientes pasos para tu perfil.'
-    : 'Tu solicitud de verificación para LAS VENENOSAS fue rechazada. Si consideras que hubo un error, contacta al equipo administrativo.';
   try {
-    await api.sendMessage({
-      chat_id: row.telegramId,
-      text: applicantText,
-      ...(action === 'approve' ? {
-        reply_markup: {
-          inline_keyboard: [[{
-            text: '🌐 Abrir WebApp de Registro',
-            url: 'https://registro-verifiedmodels.vercel.app',
-          }]],
-        },
-      } : {}),
-    });
+    if (action === 'approve') {
+      const cfg = await readTemplate('approval');
+      const rows = Array.isArray(cfg.buttons) ? cfg.buttons.map(r => r.map(b => ({ text: String(b.text), url: String(b.url) }))) : [];
+      rows.push([{ text: '🌐 Abrir WebApp de Registro', url: 'https://registro-verifiedmodels.vercel.app' }]);
+      await sendTemplate(row.telegramId, 'approval', TEMPLATE_DEFS.approval.fallback, { reply_markup: { inline_keyboard: rows } });
+    } else {
+      await sendTemplate(row.telegramId, 'rejection', TEMPLATE_DEFS.rejection.fallback);
+    }
   } catch (error) {
     console.log('No se pudo notificar la resolución al solicitante:', String(error));
   }
@@ -140,6 +171,33 @@ export default async function (query) {
     return;
   }
   try {
+    if (data === 'verify:templates') {
+      await answer(query, 'Editor de mensajes');
+      return showTemplates(actorId);
+    }
+    const templateOpen = data.match(/^verify:template:open:([a-z]+)$/);
+    if (templateOpen) {
+      await answer(query, 'Plantilla abierta');
+      return showTemplateEditor(actorId, templateOpen[1]);
+    }
+    const templateAction = data.match(/^verify:template:(edittext|editbuttons|editmedia|preview):([a-z]+)$/);
+    if (templateAction) {
+      const [, action, key] = templateAction;
+      if (!TEMPLATE_DEFS[key]) return answer(query, 'Plantilla no reconocida.', true);
+      if (action === 'preview') {
+        await answer(query, 'Enviando vista previa…');
+        return sendTemplate(actorId, key, TEMPLATE_DEFS[key].fallback);
+      }
+      const steps = { edittext: 'template_text', editbuttons: 'template_buttons', editmedia: 'template_media' };
+      await setAdminTemplateSession(key, steps[action]);
+      const prompts = {
+        edittext: '📝 Envía el nuevo texto completo de esta plantilla.',
+        editbuttons: '🔘 Envía los botones con el formato: Título - https://enlace.com\\nPara colocar varios en una misma fila, sepáralos con &&. Cada nueva línea crea otra fila. Escribe quitar para eliminar todos los botones.',
+        editmedia: '🖼️ Envía una foto, video, GIF, audio o documento para esta plantilla. Escribe quitar para eliminar el multimedia actual.',
+      };
+      await answer(query, 'Modo de edición activado.');
+      return api.sendMessage({ chat_id: actorId, text: prompts[action] });
+    }
     if (data === 'verify:list') {
       await answer(query, 'Actualizando lista…');
       await api.sendMessage({
