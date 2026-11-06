@@ -3,10 +3,10 @@ import { eq } from 'sdk/db';
 import { verificationTemplates } from '../schema.js';
 
 export const TEMPLATE_DEFS = {
-  welcome: { title: '👋 Bienvenida', fallback: 'Bienvenida al proceso privado de verificacion de LAS VENENOSAS.\\n\\nUsa /solicitar para comenzar tu solicitud.\\n\\nTus evidencias seran revisadas de forma privada por el equipo autorizado.' },
-  video: { title: '🎥 Solicitud de videomensaje', fallback: '🎥 PASO 1 DE 3 — VIDEOMENSAJE\\nEnvía un videomensaje grabado directamente desde Telegram (video circular). Debes decir tu usuario, edad, nacionalidad, fecha y hora reales de grabación, y que realizas la verificación para LAS VENENOSAS.\\n\\nNo envíes videos de otras personas ni archivos reenviados.' },
-  zing: { title: '📸 Solicitud de foto Zing', fallback: '📸 PASO 2 DE 3 — FOTO ZING\\nEnvía una fotografía actual sosteniendo un papel físico donde se lea exactamente: LAS VENENOSAS. La fotografía debe permitir comprobar que tú sostienes el papel.' },
-  references: { title: '🧾 Solicitud de referencias', fallback: '🧾 PASO 3 DE 3 — REFERENCIAS DE VENTAS\\nEnvía las referencias que permitan validar tu actividad de ventas. Puedes incluir enlaces, nombres de usuario y una breve explicación. No compartas contraseñas, datos bancarios ni información privada de terceros.' },
+  welcome: { title: '👋 Bienvenida', fallback: 'Bienvenida al proceso privado de verificacion de LAS VENENOSAS.\n\nUsa /solicitar para comenzar tu solicitud.\n\nTus evidencias seran revisadas de forma privada por el equipo autorizado.' },
+  video: { title: '🎥 Solicitud de videomensaje', fallback: '🎥 PASO 1 DE 3 — VIDEOMENSAJE\nEnvía un videomensaje grabado directamente desde Telegram (video circular). Debes decir tu usuario, edad, nacionalidad, fecha y hora reales de grabación, y que realizas la verificación para LAS VENENOSAS.\n\nNo envíes videos de otras personas ni archivos reenviados.' },
+  zing: { title: '📸 Solicitud de foto Zing', fallback: '📸 PASO 2 DE 3 — FOTO ZING\nEnvía una fotografía actual sosteniendo un papel físico donde se lea exactamente: LAS VENENOSAS. La fotografía debe permitir comprobar que tú sostienes el papel.' },
+  references: { title: '🧾 Solicitud de referencias', fallback: '🧾 PASO 3 DE 3 — REFERENCIAS DE VENTAS\nEnvía las referencias que permitan validar tu actividad de ventas. Puedes incluir enlaces, nombres de usuario y una breve explicación. No compartas contraseñas, datos bancarios ni información privada de terceros.' },
   approval: { title: '✅ Mensaje de aprobación', fallback: '🎉 Tu solicitud de verificación para LAS VENENOSAS fue aprobada. El equipo te indicará los siguientes pasos para tu perfil.' },
   rejection: { title: '❌ Mensaje de rechazo', fallback: 'Tu solicitud de verificación para LAS VENENOSAS fue rechazada. Si consideras que hubo un error, contacta al equipo administrativo.' },
 };
@@ -53,7 +53,7 @@ export async function sendTemplate(chatId, key, fallback, extra = {}) {
 }
 
 export function parseButtonRows(input) {
-  const lines = String(input || '').split('\\n').map(x => x.trim()).filter(Boolean);
+  const lines = String(input || '').split('\n').map(x => x.trim()).filter(Boolean);
   const rows = [];
   for (const line of lines) {
     const row = line.split('&&').map(part => {
