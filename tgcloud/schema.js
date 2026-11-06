@@ -72,3 +72,11 @@ export const verificationSessions = table('verification_sessions', {
   step: text('step').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+
+
+// Plantillas editables de los mensajes del proceso de verificación.
+export const verificationTemplates = table('verification_templates', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull().default('{}'),
+  updatedAt: integer('updated_at').notNull(),
+});
