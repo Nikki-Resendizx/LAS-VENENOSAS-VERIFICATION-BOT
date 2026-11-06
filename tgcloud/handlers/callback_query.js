@@ -58,12 +58,22 @@ async function handleDecision(query, action, requestId) {
   }
 
   if (action === 'correction') {
-    await db.insert(verificationSessions).values({
-      telegramId: OWNER_ID,
-      requestId,
-      step: 'admin_correction',
-      updatedAt: now(),
-    }).run();
+    const ownerSession = await db.select().from(verificationSessions)
+      .where(eq(verificationSessions.telegramId, OWNER_ID)).get();
+    if (ownerSession) {
+      await db.update(verificationSessions).set({
+        requestId,
+        step: 'admin_correction',
+        updatedAt: now(),
+      }).where(eq(verificationSessions.telegramId, OWNER_ID)).run();
+    } else {
+      await db.insert(verificationSessions).values({
+        telegramId: OWNER_ID,
+        requestId,
+        step: 'admin_correction',
+        updatedAt: now(),
+      }).run();
+    }
     await answer(query, 'Escribe en privado el motivo de la corrección.');
     await api.sendMessage({
       chat_id: OWNER_ID,
