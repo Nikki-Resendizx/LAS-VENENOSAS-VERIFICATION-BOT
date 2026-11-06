@@ -46,8 +46,7 @@ export default async function (message) {
   const text = String(message.text || '').trim();
 
   if (text === '/start' || text.startsWith('/start ')) {
-    return reply(chatId,
-      'Bienvenida al proceso privado de verificacion de LAS VENENOSAS.\n\nUsa /solicitar para comenzar tu solicitud.\n\nTus evidencias seran revisadas de forma privada por el equipo autorizado.');
+    return sendTemplate(chatId, 'welcome');
   }
 
   if (text === '/admin' || text.startsWith('/admin ')) {
@@ -244,8 +243,8 @@ export default async function (message) {
     await db.update(verificationSessions).set({
       step: 'videomensaje', updatedAt: timestamp,
     }).where(eq(verificationSessions.telegramId, telegramId)).run();
-    return reply(chatId,
-      '✅ Datos iniciales registrados.\n\nPASO 1 DE 3 — VIDEOMENSAJE\nEnvía un videomensaje grabado directamente desde Telegram (video circular). Debes decir tu usuario, edad, nacionalidad, fecha y hora reales de grabación, y que realizas la verificación para LAS VENENOSAS.\n\nNo envíes videos de otras personas ni archivos reenviados.');
+    await reply(chatId, '✅ Datos iniciales registrados.');
+    return sendTemplate(chatId, 'video');
   }
 
   if (session.step === 'videomensaje') {
@@ -258,8 +257,8 @@ export default async function (message) {
     await forwardEvidence(message, Number(topic.topicId));
     await db.update(verificationSessions).set({ step: 'foto_zing', updatedAt: now() })
       .where(eq(verificationSessions.telegramId, telegramId)).run();
-    return reply(chatId,
-      '🎥 Videomensaje recibido y enviado a tu expediente privado.\n\nPASO 2 DE 3 — FOTO ZING\nEnvía una fotografía actual sosteniendo un papel físico donde se lea exactamente: LAS VENENOSAS. La fotografía debe permitir comprobar que tú sostienes el papel.');
+    await reply(chatId, '🎥 Videomensaje recibido y enviado a tu expediente privado.');
+    return sendTemplate(chatId, 'zing');
   }
 
   if (session.step === 'foto_zing') {
@@ -272,8 +271,8 @@ export default async function (message) {
     await forwardEvidence(message, Number(topic.topicId));
     await db.update(verificationSessions).set({ step: 'referencias', updatedAt: now() })
       .where(eq(verificationSessions.telegramId, telegramId)).run();
-    return reply(chatId,
-      '📸 Foto recibida y guardada en tu expediente privado.\n\nPASO 3 DE 3 — REFERENCIAS DE VENTAS\nEnvía las referencias que permitan validar tu actividad de ventas. Puedes incluir enlaces, nombres de usuario y una breve explicación. No compartas contraseñas, datos bancarios ni información privada de terceros.');
+    await reply(chatId, '📸 Foto recibida y guardada en tu expediente privado.');
+    return sendTemplate(chatId, 'references');
   }
 
   if (session.step === 'referencias') {
