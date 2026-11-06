@@ -3,6 +3,7 @@ import { eq } from 'sdk/db';
 import {
   verificationRequests,
   verificationEvidence,
+  verificationAudit,
   verificationSessions,
   verificationTopics,
 } from '../schema.js';
