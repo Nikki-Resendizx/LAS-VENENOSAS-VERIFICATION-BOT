@@ -6,9 +6,7 @@ import {
   verificationSessions,
   legacyGalleryAccess,
   verificationTopics,
-  verificationRequests,
-} from '../schema.js';
-import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
+} from '../schema.js';import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
 import { readTemplate, sendTemplate, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
