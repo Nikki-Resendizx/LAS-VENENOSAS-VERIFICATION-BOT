@@ -34,9 +34,67 @@ function keyboardFromButtons(buttons) {
   return { inline_keyboard: buttons.map(row => row.map(b => ({ text: String(b.text), url: String(b.url), style: ['primary', 'success', 'danger'].includes(b.style) ? b.style : 'primary' }))) };
 }
 
+// Variables dinámicas compartidas por todas las plantillas editables.
+export const TEMPLATE_VARIABLE_HELP = [
+  '{nombre} — nombre de la persona',
+  '{mencion} — mención clicable de Telegram',
+  '{usuario} — @usuario (o «Sin username»)',
+  '{id} — ID de Telegram',
+  '{fecha} — fecha actual (America/Mexico_City)',
+  '{hora} — hora actual (America/Mexico_City)',
+  '{fecha_hora} — fecha y hora actuales',
+  '{nombre_modelo} — nombre completo de la modelo',
+  '{perfil} — @usuario o nombre de perfil',
+  '{bot} — LAS VENENOSAS',
+  '{chat_id} — ID del chat o grupo',
+  '{chat} — nombre del chat o grupo',
+  '{enlace} — enlace de perfil de Telegram',
+  '{estado} — estado actual de la solicitud',
+  '{admin} — administrador responsable',
+].join('\\n');
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+export function renderTemplate(input, context = {}) {
+  const user = context.user || {};
+  const fullName = String(context.nombre_modelo || context.nombre || [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Modelo');
+  const username = String(context.usuario || user.username || '');
+  const userId = context.id ?? user.id ?? '';
+  const stamp = new Date();
+  const dateOptions = { timeZone: 'America/Mexico_City' };
+  const fecha = stamp.toLocaleDateString('es-MX', dateOptions);
+  const hora = stamp.toLocaleTimeString('es-MX', { ...dateOptions, hour: '2-digit', minute: '2-digit' });
+  const profile = username ? '@' + username.replace(/^@/, '') : fullName;
+  const link = context.enlace || (userId ? 'tg://user?id=' + userId : '');
+  const values = {
+    nombre: fullName,
+    usuario: username ? '@' + username.replace(/^@/, '') : 'Sin username',
+    id: userId,
+    fecha,
+    hora,
+    fecha_hora: fecha + ' ' + hora,
+    nombre_modelo: fullName,
+    perfil: profile,
+    bot: context.bot || 'LAS VENENOSAS',
+    chat_id: context.chat_id ?? context.chat?.id ?? '',
+    chat: context.chat?.title || context.chat_name || '',
+    enlace: link,
+    estado: context.estado || context.status || '',
+    admin: context.admin || '',
+  };
+  values.mencion = userId
+    ? '<a href="tg://user?id=' + encodeURIComponent(String(userId)) + '">' + escapeHtml(fullName) + '</a>'
+    : escapeHtml(fullName);
+  return String(input ?? '').replace(/\\{([a-z_]+)\\}/gi, (match, key) =>
+    Object.prototype.hasOwnProperty.call(values, key.toLowerCase()) ? String(values[key.toLowerCase()]) : match
+  );
+}
+
 export async function sendTemplate(chatId, key, fallback, extra = {}) {
   const cfg = await readTemplate(key);
-  const text = String(cfg.text || fallback || TEMPLATE_DEFS[key]?.fallback || '');
+  const context = extra.context || {};\n  const text = renderTemplate(String(cfg.text || fallback || TEMPLATE_DEFS[key]?.fallback || ''), context);
   const configuredKeyboard = keyboardFromButtons(cfg.buttons);
   const appendRows = Array.isArray(extra.appendButtons) ? extra.appendButtons : [];
   const baseRows = extra.reply_markup?.inline_keyboard || configuredKeyboard?.inline_keyboard || [];
@@ -47,14 +105,14 @@ export async function sendTemplate(chatId, key, fallback, extra = {}) {
   if (cfg.media?.fileId && cfg.media?.type) {
     const m = cfg.media;
     const caption = text.slice(0, 1000);
-    if (m.type === 'photo') return api.sendPhoto({ ...common, photo: m.fileId, caption });
-    if (m.type === 'video') return api.sendVideo({ ...common, video: m.fileId, caption });
-    if (m.type === 'animation') return api.sendAnimation({ ...common, animation: m.fileId, caption });
-    if (m.type === 'document') return api.sendDocument({ ...common, document: m.fileId, caption });
-    if (m.type === 'audio') return api.sendAudio({ ...common, audio: m.fileId, caption });
-    if (m.type === 'voice') return api.sendVoice({ ...common, voice: m.fileId, caption });
+    if (m.type === 'photo') return api.sendPhoto({ ...common, photo: m.fileId, caption, parse_mode: 'HTML' });
+    if (m.type === 'video') return api.sendVideo({ ...common, video: m.fileId, caption, parse_mode: 'HTML' });
+    if (m.type === 'animation') return api.sendAnimation({ ...common, animation: m.fileId, caption, parse_mode: 'HTML' });
+    if (m.type === 'document') return api.sendDocument({ ...common, document: m.fileId, caption, parse_mode: 'HTML' });
+    if (m.type === 'audio') return api.sendAudio({ ...common, audio: m.fileId, caption, parse_mode: 'HTML' });
+    if (m.type === 'voice') return api.sendVoice({ ...common, voice: m.fileId, caption, parse_mode: 'HTML' });
   }
-  return api.sendMessage({ ...common, text });
+  return api.sendMessage({ ...common, text, parse_mode: 'HTML' });
 }
 
 export function parseButtonRows(input) {
