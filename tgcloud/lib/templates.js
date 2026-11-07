@@ -9,9 +9,9 @@ export const TEMPLATE_DEFS = {
   references: { title: '🧾 Solicitud de referencias', fallback: '🧾 PASO 3 DE 3 — REFERENCIAS DE VENTAS\nEnvía las referencias que permitan validar tu actividad de ventas. Puedes incluir enlaces, nombres de usuario y una breve explicación. No compartas contraseñas, datos bancarios ni información privada de terceros.' },
   approval: { title: '✅ Mensaje de aprobación', fallback: '🎉 Tu solicitud de verificación para LAS VENENOSAS fue aprobada. El equipo te indicará los siguientes pasos para tu perfil.' },
   rejection: { title: '❌ Mensaje de rechazo', fallback: 'Tu solicitud de verificación para LAS VENENOSAS fue rechazada. Si consideras que hubo un error, contacta al equipo administrativo.' },
-  topic_request: { title: '📥 Aviso de nueva solicitud (tema)', fallback: '📥 NUEVA SOLICITUD DE VERIFICACIÓN\\nUsuario: {usuario}\\nNombre: {nombre}\\nID Telegram: {id}\\nEdad declarada: {edad}\\nNacionalidad: {nacionalidad}\\nExpediente: {expediente}' },
-  topic_complete: { title: '🧾 Aviso de expediente completo (tema)', fallback: '🧾 REFERENCIAS DE VENTAS recibidas.\\nModelo: {nombre} ({usuario})\\nID Telegram: {id}\\nEstado: {estado}\\nEl expediente está completo y pendiente de revisión administrativa.' },
-  topic_legacy_request: { title: '🗂️ Aviso de acceso a Galería (tema)', fallback: '🗂️ SOLICITUD DE ACCESO A GALERÍA\\n\\nModelo previamente verificada solicita acceso al registro.\\nUsuario: {usuario}\\nNombre: {nombre}\\nID Telegram: {id}\\nTipo: Acceso directo a Galería\\nEstado: {estado}' },
+  topic_request: { title: '📥 Aviso de nueva solicitud (tema)', fallback: '📥 NUEVA SOLICITUD DE VERIFICACIÓN\nUsuario: {usuario}\nNombre: {nombre}\nID Telegram: {id}\nEdad declarada: {edad}\nNacionalidad: {nacionalidad}\nExpediente: {expediente}' },
+  topic_complete: { title: '🧾 Aviso de expediente completo (tema)', fallback: '🧾 REFERENCIAS DE VENTAS recibidas.\nModelo: {nombre} ({usuario})\nID Telegram: {id}\nEstado: {estado}\nEl expediente está completo y pendiente de revisión administrativa.' },
+  topic_legacy_request: { title: '🗂️ Aviso de acceso a Galería (tema)', fallback: '🗂️ SOLICITUD DE ACCESO A GALERÍA\n\nModelo previamente verificada solicita acceso al registro.\nUsuario: {usuario}\nNombre: {nombre}\nID Telegram: {id}\nTipo: Acceso directo a Galería\nEstado: {estado}' },
 };
 
 export async function readTemplate(key) {
@@ -54,7 +54,7 @@ export const TEMPLATE_VARIABLE_HELP = [
   '{enlace} — enlace de perfil de Telegram',
   '{estado} — estado actual de la solicitud',
   '{admin} — administrador responsable',
-].join('\\n');
+].join('\n')
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -93,7 +93,7 @@ export function renderTemplate(input, context = {}) {
   values.mencion = userId
     ? '<a href="tg://user?id=' + encodeURIComponent(String(userId)) + '">' + escapeHtml(fullName) + '</a>'
     : escapeHtml(fullName);
-  return String(input ?? '').replace(/\\{([a-z_]+)\\}/gi, (match, key) =>
+  return String(input ?? '').replace(/\{([a-z_]+)\}/gi, (match, key) =>
     Object.prototype.hasOwnProperty.call(values, key.toLowerCase()) ? String(values[key.toLowerCase()]) : match
   );
 }
