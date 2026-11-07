@@ -6,6 +6,7 @@ import {
   verificationAudit,
   verificationSessions,
   verificationTopics,
+  legacyGalleryAccess,
 } from '../schema.js';
 import { OWNER_ID, VERIFY_GROUP_ID } from '../lib/config.js';
 import { sendTemplate, readTemplate, saveTemplate, parseButtonRows, TEMPLATE_DEFS } from '../lib/templates.js';
