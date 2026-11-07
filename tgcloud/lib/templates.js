@@ -9,6 +9,9 @@ export const TEMPLATE_DEFS = {
   references: { title: '🧾 Solicitud de referencias', fallback: '🧾 PASO 3 DE 3 — REFERENCIAS DE VENTAS\nEnvía las referencias que permitan validar tu actividad de ventas. Puedes incluir enlaces, nombres de usuario y una breve explicación. No compartas contraseñas, datos bancarios ni información privada de terceros.' },
   approval: { title: '✅ Mensaje de aprobación', fallback: '🎉 Tu solicitud de verificación para LAS VENENOSAS fue aprobada. El equipo te indicará los siguientes pasos para tu perfil.' },
   rejection: { title: '❌ Mensaje de rechazo', fallback: 'Tu solicitud de verificación para LAS VENENOSAS fue rechazada. Si consideras que hubo un error, contacta al equipo administrativo.' },
+  topic_request: { title: '📥 Aviso de nueva solicitud (tema)', fallback: '📥 NUEVA SOLICITUD DE VERIFICACIÓN\\nUsuario: {usuario}\\nNombre: {nombre}\\nID Telegram: {id}\\nEdad declarada: {edad}\\nNacionalidad: {nacionalidad}\\nExpediente: {expediente}' },
+  topic_complete: { title: '🧾 Aviso de expediente completo (tema)', fallback: '🧾 REFERENCIAS DE VENTAS recibidas.\\nModelo: {nombre} ({usuario})\\nID Telegram: {id}\\nEstado: {estado}\\nEl expediente está completo y pendiente de revisión administrativa.' },
+  topic_legacy_request: { title: '🗂️ Aviso de acceso a Galería (tema)', fallback: '🗂️ SOLICITUD DE ACCESO A GALERÍA\\n\\nModelo previamente verificada solicita acceso al registro.\\nUsuario: {usuario}\\nNombre: {nombre}\\nID Telegram: {id}\\nTipo: Acceso directo a Galería\\nEstado: {estado}' },
 };
 
 export async function readTemplate(key) {
@@ -75,7 +78,7 @@ export function renderTemplate(input, context = {}) {
     fecha,
     hora,
     fecha_hora: fecha + ' ' + hora,
-    nombre_modelo: fullName,
+    nombre_modelo: fullName,\n    edad: context.edad ?? '',\n    nacionalidad: context.nacionalidad ?? '',\n    expediente: context.expediente ?? '',
     perfil: profile,
     bot: context.bot || 'LAS VENENOSAS',
     chat_id: context.chat_id ?? context.chat?.id ?? '',
@@ -102,7 +105,7 @@ export async function sendTemplate(chatId, key, fallback, extra = {}) {
   const reply_markup = (extra.reply_markup || configuredKeyboard || appendRows.length)
     ? { inline_keyboard: [...baseRows, ...appendRows] }
     : undefined;
-  const common = { chat_id: chatId, ...(reply_markup ? { reply_markup } : {}) };
+  const common = { chat_id: chatId, ...(extra.message_thread_id ? { message_thread_id: extra.message_thread_id } : {}), ...(reply_markup ? { reply_markup } : {}) };
   if (cfg.media?.fileId && cfg.media?.type) {
     const m = cfg.media;
     const caption = text.slice(0, 1000);
