@@ -66,6 +66,7 @@ export default async function (message) {
 
   if (text === '/start' || text.startsWith('/start ')) {
     return sendTemplate(chatId, 'welcome', TEMPLATE_DEFS.welcome.fallback, {
+      context: { user: message.from, chat: message.chat, chat_id: chatId, id: telegramId, nombre_modelo: [message.from.first_name, message.from.last_name].filter(Boolean).join(' '), estado: 'BIENVENIDA' },
       appendButtons: [
         [{ text: '✅ Ya estoy verificada', callback_data: 'legacy:request' }],
         [{ text: '📝 Soy nueva, quiero verificarme', callback_data: 'legacy:new' }],
