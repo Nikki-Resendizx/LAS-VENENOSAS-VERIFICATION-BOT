@@ -46,7 +46,12 @@ export default async function (message) {
   const text = String(message.text || '').trim();
 
   if (text === '/start' || text.startsWith('/start ')) {
-    return sendTemplate(chatId, 'welcome');
+    return sendTemplate(chatId, 'welcome', TEMPLATE_DEFS.welcome.fallback, {
+      appendButtons: [
+        [{ text: '✅ Ya estoy verificada', callback_data: 'legacy:request' }],
+        [{ text: '📝 Soy nueva, quiero verificarme', callback_data: 'legacy:new' }],
+      ],
+    });
   }
 
   if (text === '/admin' || text.startsWith('/admin ')) {
@@ -59,6 +64,9 @@ export default async function (message) {
       text: '📂 ' + (row.username ? '@' + row.username : String(row.telegramId)),
       callback_data: 'verify:open:' + row.id,
     }]);
+    const legacyPending = (await db.select().from(legacyGalleryAccess).all()).filter(row => row.status === 'PENDING');
+    keyboard.push([{ text: '🗂️ Accesos a Galería (' + legacyPending.length + ')', callback_data: 'legacy:list' }]);
+    keyboard.push([{ text: '➕ Agregar IDs aprobados', callback_data: 'legacy:add' }]);
     keyboard.push([{ text: '✏️ Editar mensajes', callback_data: 'verify:templates' }]);
     keyboard.push([{ text: '🔄 Actualizar', callback_data: 'verify:list' }]);
     return api.sendMessage({
@@ -101,6 +109,21 @@ export default async function (message) {
 
   const session = await db.select().from(verificationSessions)
     .where(eq(verificationSessions.telegramId, telegramId)).get();
+
+  if (telegramId === OWNER_ID && session?.step === 'legacy_add_ids') {
+    const ids = [...new Set(text.split(/[\\s,;]+/).map(value => Number(value.trim())).filter(value => Number.isSafeInteger(value) && value > 0))];
+    if (!ids.length) return reply(chatId, 'No detecté IDs válidos. Envía uno o varios IDs numéricos separados por espacios, comas o saltos de línea.');
+    let added = 0;
+    for (const id of ids) {
+      const current = await db.select().from(legacyGalleryAccess).where(eq(legacyGalleryAccess.telegramId, id)).get();
+      const values = { username: '', firstName: '', status: 'AUTHORIZED', source: 'ADMIN_LIST', requestedAt: now(), reviewedBy: OWNER_ID, reviewedAt: now() };
+      if (current) await db.update(legacyGalleryAccess).set(values).where(eq(legacyGalleryAccess.telegramId, id)).run();
+      else await db.insert(legacyGalleryAccess).values({ telegramId: id, ...values }).run();
+      added++;
+    }
+    await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+    return api.sendMessage({ chat_id: chatId, text: '✅ Se agregaron/autorizaron ' + added + ' ID(s). Esas cuentas podrán elegir «Ya estoy verificada» y pasar al registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🗂️ Ver accesos', callback_data: 'legacy:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
+  }
 
   if (telegramId === OWNER_ID && session?.step?.startsWith('template_')) {
     const key = session.requestId;
