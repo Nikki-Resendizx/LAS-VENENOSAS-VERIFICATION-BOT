@@ -31,7 +31,7 @@ export async function saveTemplate(key, value) {
 
 function keyboardFromButtons(buttons) {
   if (!Array.isArray(buttons) || !buttons.length) return undefined;
-  return { inline_keyboard: buttons.map(row => row.map(b => ({ text: String(b.text), url: String(b.url) }))) };
+  return { inline_keyboard: buttons.map(row => row.map(b => ({ text: String(b.text), url: String(b.url), style: ['primary', 'success', 'danger'].includes(b.style) ? b.style : 'primary' }))) };
 }
 
 export async function sendTemplate(chatId, key, fallback, extra = {}) {
@@ -60,9 +60,16 @@ export function parseButtonRows(input) {
       const idx = part.lastIndexOf(' - ');
       if (idx < 1) throw new Error('Cada botón debe tener el formato Texto - URL.');
       const text = part.slice(0, idx).trim();
-      const url = part.slice(idx + 3).trim();
+      let urlAndStyle = part.slice(idx + 3).trim();
+      let style = 'primary';
+      const color = urlAndStyle.match(/\s+\[(azul|rojo|verde)\]$/i);
+      if (color) {
+        style = ({ azul: 'primary', rojo: 'danger', verde: 'success' })[color[1].toLowerCase()];
+        urlAndStyle = urlAndStyle.slice(0, color.index).trim();
+      }
+      const url = urlAndStyle;
       if (!text || !/^https?:\/\//i.test(url)) throw new Error('Cada botón necesita un título y un enlace http o https válido.');
-      return { text, url };
+      return { text, url, style };
     });
     rows.push(row);
   }
