@@ -197,12 +197,13 @@ async function legacyRequest(query) {
   if (current) await db.update(legacyGalleryAccess).set(values).where(eq(legacyGalleryAccess.telegramId, id)).run();
   else await db.insert(legacyGalleryAccess).values({ telegramId: id, ...values }).run();
   const topicId = await getOrCreateLegacyTopic(id, query.from.username);
-  await api.sendMessage({
-    chat_id: VERIFY_GROUP_ID,
+  await sendTemplate(VERIFY_GROUP_ID, 'topic_legacy_request', TEMPLATE_DEFS.topic_legacy_request.fallback, {
     message_thread_id: topicId,
-    text: '🗂️ SOLICITUD DE ACCESO A GALERÍA\\n\\nModelo previamente verificada solicita acceso al registro.\\nUsuario: ' +
-      (query.from.username ? '@' + query.from.username : 'Sin username') + '\\nNombre: ' + String(query.from.first_name || '') +
-      '\\nID Telegram: ' + id + '\\nTipo: Acceso directo a Galería\\nEstado: PENDIENTE DE AUTORIZACIÓN',
+    context: {
+      user: query.from, chat_id: VERIFY_GROUP_ID, id,
+      nombre_modelo: String(query.from.first_name || ''),
+      estado: 'PENDIENTE DE AUTORIZACIÓN',
+    },
     reply_markup: { inline_keyboard: [[
       { text: '✅ Autorizar', callback_data: 'legacy:approve:' + id },
       { text: '❌ Rechazar', callback_data: 'legacy:reject:' + id },
