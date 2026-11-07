@@ -9,7 +9,7 @@ import {
   legacyGalleryAccess,
 } from '../schema.js';
 import { OWNER_ID, VERIFY_GROUP_ID } from '../lib/config.js';
-import { sendTemplate, readTemplate, saveTemplate, parseButtonRows, TEMPLATE_DEFS } from '../lib/templates.js';
+import { sendTemplate, readTemplate, saveTemplate, parseButtonRows, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 const requestId = (telegramId) => String(telegramId) + '-' + Date.now();
