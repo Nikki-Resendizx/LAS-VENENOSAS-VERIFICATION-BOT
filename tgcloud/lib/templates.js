@@ -32,9 +32,9 @@ export async function saveTemplate(key, value) {
   }
 }
 
-function keyboardFromButtons(buttons) {
+function keyboardFromButtons(buttons, context = {}) {
   if (!Array.isArray(buttons) || !buttons.length) return undefined;
-  return { inline_keyboard: buttons.map(row => row.map(b => ({ text: String(b.text), url: String(b.url), style: ['primary', 'success', 'danger'].includes(b.style) ? b.style : 'primary' }))) };
+  return { inline_keyboard: buttons.map(row => row.map(b => ({ text: renderTemplate(String(b.text), context), url: renderTemplate(String(b.url), context), style: ['primary', 'success', 'danger'].includes(b.style) ? b.style : 'primary' }))) };
 }
 
 // Variables dinámicas compartidas por todas las plantillas editables.
@@ -99,7 +99,7 @@ export async function sendTemplate(chatId, key, fallback, extra = {}) {
   const cfg = await readTemplate(key);
   const context = extra.context || {};
   const text = renderTemplate(String(cfg.text || fallback || TEMPLATE_DEFS[key]?.fallback || ''), context);
-  const configuredKeyboard = keyboardFromButtons(cfg.buttons);
+  const configuredKeyboard = keyboardFromButtons(cfg.buttons, context);
   const appendRows = Array.isArray(extra.appendButtons) ? extra.appendButtons : [];
   const baseRows = extra.reply_markup?.inline_keyboard || configuredKeyboard?.inline_keyboard || [];
   const reply_markup = (extra.reply_markup || configuredKeyboard || appendRows.length)
