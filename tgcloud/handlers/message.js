@@ -273,7 +273,7 @@ export default async function (message) {
       step: 'videomensaje', updatedAt: timestamp,
     }).where(eq(verificationSessions.telegramId, telegramId)).run();
     await reply(chatId, '✅ Datos iniciales registrados.');
-    return sendTemplate(chatId, 'video');
+    return sendTemplate(chatId, 'video', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
   }
 
   if (session.step === 'videomensaje') {
@@ -287,7 +287,7 @@ export default async function (message) {
     await db.update(verificationSessions).set({ step: 'foto_zing', updatedAt: now() })
       .where(eq(verificationSessions.telegramId, telegramId)).run();
     await reply(chatId, '🎥 Videomensaje recibido y enviado a tu expediente privado.');
-    return sendTemplate(chatId, 'zing');
+    return sendTemplate(chatId, 'zing', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
   }
 
   if (session.step === 'foto_zing') {
@@ -301,7 +301,7 @@ export default async function (message) {
     await db.update(verificationSessions).set({ step: 'referencias', updatedAt: now() })
       .where(eq(verificationSessions.telegramId, telegramId)).run();
     await reply(chatId, '📸 Foto recibida y guardada en tu expediente privado.');
-    return sendTemplate(chatId, 'references');
+    return sendTemplate(chatId, 'references', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
   }
 
   if (session.step === 'referencias') {
