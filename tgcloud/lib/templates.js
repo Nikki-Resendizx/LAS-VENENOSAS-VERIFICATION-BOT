@@ -94,7 +94,8 @@ export function renderTemplate(input, context = {}) {
 
 export async function sendTemplate(chatId, key, fallback, extra = {}) {
   const cfg = await readTemplate(key);
-  const context = extra.context || {};\n  const text = renderTemplate(String(cfg.text || fallback || TEMPLATE_DEFS[key]?.fallback || ''), context);
+  const context = extra.context || {};
+  const text = renderTemplate(String(cfg.text || fallback || TEMPLATE_DEFS[key]?.fallback || ''), context);
   const configuredKeyboard = keyboardFromButtons(cfg.buttons);
   const appendRows = Array.isArray(extra.appendButtons) ? extra.appendButtons : [];
   const baseRows = extra.reply_markup?.inline_keyboard || configuredKeyboard?.inline_keyboard || [];
