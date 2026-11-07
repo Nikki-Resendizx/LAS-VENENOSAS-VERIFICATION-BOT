@@ -9,7 +9,7 @@ import {
   verificationRequests,
 } from '../schema.js';
 import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
-import { readTemplate, sendTemplate, TEMPLATE_DEFS } from '../lib/templates.js';
+import { readTemplate, sendTemplate, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -145,9 +145,9 @@ async function handleDecision(query, action, requestId) {
       const cfg = await readTemplate('approval');
       const rows = Array.isArray(cfg.buttons) ? cfg.buttons.map(r => r.map(b => ({ text: String(b.text), url: String(b.url), style: ['primary', 'success', 'danger'].includes(b.style) ? b.style : 'primary' }))) : [];
       rows.push([{ text: '🌐 Abrir WebApp de Registro', web_app: { url: 'https://registro-verifiedmodels.vercel.app' }, style: 'primary' }]);
-      await sendTemplate(row.telegramId, 'approval', TEMPLATE_DEFS.approval.fallback, { reply_markup: { inline_keyboard: rows } });
+      await sendTemplate(row.telegramId, 'approval', TEMPLATE_DEFS.approval.fallback, { context: { user: { id: row.telegramId, username: row.username, first_name: row.firstName }, id: row.telegramId, nombre_modelo: [row.firstName, row.lastName].filter(Boolean).join(' '), estado: status, admin: query.from.username ? '@' + query.from.username : String(query.from.id) }, reply_markup: { inline_keyboard: rows } });
     } else {
-      await sendTemplate(row.telegramId, 'rejection', TEMPLATE_DEFS.rejection.fallback);
+      await sendTemplate(row.telegramId, 'rejection', TEMPLATE_DEFS.rejection.fallback, { context: { user: { id: row.telegramId, username: row.username, first_name: row.firstName }, id: row.telegramId, nombre_modelo: [row.firstName, row.lastName].filter(Boolean).join(' '), estado: status, admin: query.from.username ? '@' + query.from.username : String(query.from.id) } });
     }
   } catch (error) {
     console.log('No se pudo notificar la resolución al solicitante:', String(error));
@@ -295,7 +295,7 @@ export default async function (query) {
       const steps = { edittext: 'template_text', editbuttons: 'template_buttons', editmedia: 'template_media' };
       await setAdminTemplateSession(key, steps[action]);
       const prompts = {
-        edittext: '📝 Envía el nuevo texto completo de esta plantilla.',
+        edittext: '📝 Envía el nuevo texto completo de esta plantilla.\\n\\nVariables disponibles:\\n' + TEMPLATE_VARIABLE_HELP,
         editbuttons: '🔘 Envía los botones con el formato: Título - https://enlace.com [azul|rojo|verde]\\nColores disponibles: [azul], [rojo] o [verde]. Si omites el color, será azul. Para colocar varios en una misma fila, sepáralos con &&. Cada nueva línea crea otra fila. Escribe quitar para eliminar todos los botones.',
         editmedia: '🖼️ Envía una foto, video, GIF, audio o documento para esta plantilla. Escribe quitar para eliminar el multimedia actual.',
       };
