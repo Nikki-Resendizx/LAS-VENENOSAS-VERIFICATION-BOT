@@ -37,7 +37,12 @@ function keyboardFromButtons(buttons) {
 export async function sendTemplate(chatId, key, fallback, extra = {}) {
   const cfg = await readTemplate(key);
   const text = String(cfg.text || fallback || TEMPLATE_DEFS[key]?.fallback || '');
-  const reply_markup = extra.reply_markup || keyboardFromButtons(cfg.buttons);
+  const configuredKeyboard = keyboardFromButtons(cfg.buttons);
+  const appendRows = Array.isArray(extra.appendButtons) ? extra.appendButtons : [];
+  const baseRows = extra.reply_markup?.inline_keyboard || configuredKeyboard?.inline_keyboard || [];
+  const reply_markup = (extra.reply_markup || configuredKeyboard || appendRows.length)
+    ? { inline_keyboard: [...baseRows, ...appendRows] }
+    : undefined;
   const common = { chat_id: chatId, ...(reply_markup ? { reply_markup } : {}) };
   if (cfg.media?.fileId && cfg.media?.type) {
     const m = cfg.media;
