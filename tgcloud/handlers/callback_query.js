@@ -280,7 +280,7 @@ export default async function (query) {
       await answer(query, 'Editor de mensajes');
       return showTemplates(actorId);
     }
-    const templateOpen = data.match(/^verify:template:open:([a-z]+)$/);
+    const templateOpen = data.match(/^verify:template:open:([a-z_]+)$/);
     if (templateOpen) {
       await answer(query, 'Plantilla abierta');
       return showTemplateEditor(actorId, templateOpen[1]);
