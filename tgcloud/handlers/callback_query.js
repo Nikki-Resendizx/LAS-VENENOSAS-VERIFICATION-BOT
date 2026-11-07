@@ -6,7 +6,7 @@ import {
   verificationSessions,
 } from '../schema.js';
 import { OWNER_ID } from '../lib/config.js';
-import { readTemplate, sendTemplate, TEMPLATE_DEFS } from '../lib/templates.js';
+import { readTemplate, sendTemplate, TEMPLATE_DEFS } from '../lib/templates.js';\nimport { REGISTRATION_WEBAPP_URL } from '../lib/config.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 
