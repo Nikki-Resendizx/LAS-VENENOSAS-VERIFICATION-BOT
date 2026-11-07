@@ -140,8 +140,8 @@ async function handleDecision(query, action, requestId) {
   try {
     if (action === 'approve') {
       const cfg = await readTemplate('approval');
-      const rows = Array.isArray(cfg.buttons) ? cfg.buttons.map(r => r.map(b => ({ text: String(b.text), url: String(b.url) }))) : [];
-      rows.push([{ text: '🌐 Abrir WebApp de Registro', web_app: { url: 'https://registro-verifiedmodels.vercel.app' } }]);
+      const rows = Array.isArray(cfg.buttons) ? cfg.buttons.map(r => r.map(b => ({ text: String(b.text), url: String(b.url), style: ['primary', 'success', 'danger'].includes(b.style) ? b.style : 'primary' }))) : [];
+      rows.push([{ text: '🌐 Abrir WebApp de Registro', web_app: { url: 'https://registro-verifiedmodels.vercel.app' }, style: 'primary' }]);
       await sendTemplate(row.telegramId, 'approval', TEMPLATE_DEFS.approval.fallback, { reply_markup: { inline_keyboard: rows } });
     } else {
       await sendTemplate(row.telegramId, 'rejection', TEMPLATE_DEFS.rejection.fallback);
@@ -192,7 +192,7 @@ export default async function (query) {
       await setAdminTemplateSession(key, steps[action]);
       const prompts = {
         edittext: '📝 Envía el nuevo texto completo de esta plantilla.',
-        editbuttons: '🔘 Envía los botones con el formato: Título - https://enlace.com\\nPara colocar varios en una misma fila, sepáralos con &&. Cada nueva línea crea otra fila. Escribe quitar para eliminar todos los botones.',
+        editbuttons: '🔘 Envía los botones con el formato: Título - https://enlace.com [azul|rojo|verde]\\nColores disponibles: [azul], [rojo] o [verde]. Si omites el color, será azul. Para colocar varios en una misma fila, sepáralos con &&. Cada nueva línea crea otra fila. Escribe quitar para eliminar todos los botones.',
         editmedia: '🖼️ Envía una foto, video, GIF, audio o documento para esta plantilla. Escribe quitar para eliminar el multimedia actual.',
       };
       await answer(query, 'Modo de edición activado.');
