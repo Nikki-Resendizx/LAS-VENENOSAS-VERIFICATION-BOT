@@ -259,15 +259,15 @@ export default async function (message) {
       status: 'PENDIENTE_EVIDENCIAS',
       updatedAt: timestamp,
     }).where(eq(verificationRequests.id, session.requestId)).run();
-    await api.sendMessage({
-      chat_id: VERIFY_GROUP_ID,
+    const requestData = await db.select().from(verificationRequests).where(eq(verificationRequests.id, session.requestId)).get();
+    await sendTemplate(VERIFY_GROUP_ID, 'topic_request', TEMPLATE_DEFS.topic_request.fallback, {
       message_thread_id: topicId,
-      text: '📥 NUEVA SOLICITUD DE VERIFICACIÓN\n' +
-        'Usuario: ' + (message.from.username ? '@' + message.from.username : 'Sin username') + '\n' +
-        'ID Telegram: ' + telegramId + '\n' +
-        'Edad declarada: ' + String((await db.select().from(verificationRequests).where(eq(verificationRequests.id, session.requestId)).get())?.ageDeclared || 'No indicada') + '\n' +
-        'Nacionalidad: ' + text + '\n' +
-        'Expediente: ' + session.requestId,
+      context: {
+        user: message.from, chat: message.chat, chat_id: VERIFY_GROUP_ID,
+        id: telegramId, nombre_modelo: [message.from.first_name, message.from.last_name].filter(Boolean).join(' '),
+        estado: 'PENDIENTE_EVIDENCIAS', edad: requestData?.ageDeclared || 'No indicada',
+        nacionalidad: text, expediente: session.requestId,
+      },
     });
     await db.update(verificationSessions).set({
       step: 'videomensaje', updatedAt: timestamp,
@@ -310,10 +310,9 @@ export default async function (message) {
     }
     const topic = await db.select().from(verificationTopics).where(eq(verificationTopics.requestId, session.requestId)).get();
     await forwardEvidence(message, Number(topic.topicId));
-    await api.sendMessage({
-      chat_id: VERIFY_GROUP_ID,
+    await sendTemplate(VERIFY_GROUP_ID, 'topic_complete', TEMPLATE_DEFS.topic_complete.fallback, {
       message_thread_id: Number(topic.topicId),
-      text: '🧾 REFERENCIAS DE VENTAS recibidas. El expediente está completo y pendiente de revisión administrativa.',
+      context: { user: message.from, chat: message.chat, chat_id: VERIFY_GROUP_ID, estado: 'EN_REVISION', expediente: session.requestId },
       reply_markup: { inline_keyboard: [[
         { text: '✅ Aprobar', callback_data: 'verify:approve:' + session.requestId },
         { text: '📝 Solicitar corrección', callback_data: 'verify:correction:' + session.requestId },
