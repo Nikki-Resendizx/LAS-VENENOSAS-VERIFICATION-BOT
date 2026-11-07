@@ -31,6 +31,24 @@ async function saveEvidence(requestIdValue, type, message, fileId = '', uniqueId
   }).run();
 }
 
+async function getOrCreateModelTopic(telegramId, username, mappingKey) {
+  const mappings = await db.select().from(verificationTopics).all();
+  const current = mappings.find(row => row.requestId === mappingKey);
+  if (current) return Number(current.topicId);
+  const requests = await db.select().from(verificationRequests).all();
+  const ids = new Set(requests.filter(row => Number(row.telegramId) === Number(telegramId)).map(row => row.id));
+  const reusable = mappings.filter(row => ids.has(row.requestId) || row.requestId === 'legacy-' + telegramId)
+    .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))[0];
+  let topicId = reusable ? Number(reusable.topicId) : 0;
+  if (!topicId) {
+    const topic = await api.createForumTopic({ chat_id: VERIFY_GROUP_ID, name: 'Modelo ' + String(username || telegramId).slice(0, 40) });
+    topicId = Number(topic?.message_thread_id);
+    if (!Number.isInteger(topicId) || topicId <= 0) throw new Error('Telegram no devolvió un identificador de tema válido.');
+  }
+  await db.insert(verificationTopics).values({ requestId: mappingKey, groupId: VERIFY_GROUP_ID, topicId, createdAt: now() }).run();
+  return topicId;
+}
+
 async function forwardEvidence(message, topicId) {
   return api.forwardMessage({
     chat_id: VERIFY_GROUP_ID,
@@ -228,27 +246,14 @@ export default async function (message) {
       updatedAt: now(),
     }).where(eq(verificationRequests.id, session.requestId)).run();
 
-    let topic;
+    let topicId;
     try {
-      topic = await api.createForumTopic({
-        chat_id: VERIFY_GROUP_ID,
-        name: 'Solicitud ' + String(message.from.username || telegramId).slice(0, 45),
-      });
+      topicId = await getOrCreateModelTopic(telegramId, message.from.username, session.requestId);
     } catch (error) {
-      console.log('No se pudo crear el tema de verificacion:', String(error));
+      console.log('No se pudo preparar el tema de verificacion:', String(error));
       return reply(chatId, 'No pude preparar tu expediente privado en este momento. Tus datos iniciales se conservaron; intenta enviar tu nacionalidad nuevamente más tarde.');
     }
-    const topicId = Number(topic?.message_thread_id);
-    if (!Number.isInteger(topicId) || topicId <= 0) {
-      return reply(chatId, 'No pude confirmar la creación de tu expediente privado. Por favor, contacta al equipo antes de volver a enviar tus datos.');
-    }
     const timestamp = now();
-    await db.insert(verificationTopics).values({
-      requestId: session.requestId,
-      groupId: VERIFY_GROUP_ID,
-      topicId,
-      createdAt: timestamp,
-    }).run();
     await db.update(verificationRequests).set({
       topicId,
       status: 'PENDIENTE_EVIDENCIAS',
