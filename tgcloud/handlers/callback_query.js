@@ -283,13 +283,13 @@ export default async function (query) {
       await answer(query, 'Plantilla abierta');
       return showTemplateEditor(actorId, templateOpen[1]);
     }
-    const templateAction = data.match(/^verify:template:(edittext|editbuttons|editmedia|preview):([a-z]+)$/);
+    const templateAction = data.match(/^verify:template:(edittext|editbuttons|editmedia|preview):([a-z_]+)$/);
     if (templateAction) {
       const [, action, key] = templateAction;
       if (!TEMPLATE_DEFS[key]) return answer(query, 'Plantilla no reconocida.', true);
       if (action === 'preview') {
         await answer(query, 'Enviando vista previa…');
-        return sendTemplate(actorId, key, TEMPLATE_DEFS[key].fallback);
+        return sendTemplate(actorId, key, TEMPLATE_DEFS[key].fallback, { context: { user: query.from, id: query.from.id, nombre_modelo: [query.from.first_name, query.from.last_name].filter(Boolean).join(' '), estado: 'VISTA PREVIA', admin: query.from.username ? '@' + query.from.username : String(query.from.id) } });
       }
       const steps = { edittext: 'template_text', editbuttons: 'template_buttons', editmedia: 'template_media' };
       await setAdminTemplateSession(key, steps[action]);
