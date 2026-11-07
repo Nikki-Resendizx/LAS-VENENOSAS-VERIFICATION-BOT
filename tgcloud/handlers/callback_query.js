@@ -141,7 +141,7 @@ async function handleDecision(query, action, requestId) {
     if (action === 'approve') {
       const cfg = await readTemplate('approval');
       const rows = Array.isArray(cfg.buttons) ? cfg.buttons.map(r => r.map(b => ({ text: String(b.text), url: String(b.url) }))) : [];
-      rows.push([{ text: '🌐 Abrir WebApp de Registro', url: 'https://registro-verifiedmodels.vercel.app' }]);
+      rows.push([{ text: '🌐 Abrir WebApp de Registro', web_app: { url: 'https://registro-verifiedmodels.vercel.app' } }]);
       await sendTemplate(row.telegramId, 'approval', TEMPLATE_DEFS.approval.fallback, { reply_markup: { inline_keyboard: rows } });
     } else {
       await sendTemplate(row.telegramId, 'rejection', TEMPLATE_DEFS.rejection.fallback);
