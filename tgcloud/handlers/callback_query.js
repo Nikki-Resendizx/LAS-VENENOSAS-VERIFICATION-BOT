@@ -5,8 +5,10 @@ import {
   verificationAudit,
   verificationSessions,
   legacyGalleryAccess,
+  verificationTopics,
+  verificationRequests,
 } from '../schema.js';
-import { OWNER_ID, REGISTRATION_WEBAPP_URL } from '../lib/config.js';
+import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
 import { readTemplate, sendTemplate, TEMPLATE_DEFS } from '../lib/templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -163,6 +165,24 @@ async function handleDecision(query, action, requestId) {
 }
 
 
+async function getOrCreateLegacyTopic(telegramId, username) {
+  const mappingKey = 'legacy-' + telegramId;
+  const mappings = await db.select().from(verificationTopics).all();
+  const current = mappings.find(row => row.requestId === mappingKey);
+  if (current) return Number(current.topicId);
+  const requests = await db.select().from(verificationRequests).all();
+  const ids = new Set(requests.filter(row => Number(row.telegramId) === Number(telegramId)).map(row => row.id));
+  const reusable = mappings.filter(row => ids.has(row.requestId)).sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))[0];
+  let topicId = reusable ? Number(reusable.topicId) : 0;
+  if (!topicId) {
+    const topic = await api.createForumTopic({ chat_id: VERIFY_GROUP_ID, name: 'Modelo ' + String(username || telegramId).slice(0, 40) });
+    topicId = Number(topic?.message_thread_id);
+    if (!Number.isInteger(topicId) || topicId <= 0) throw new Error('No se pudo crear un tema válido.');
+  }
+  await db.insert(verificationTopics).values({ requestId: mappingKey, groupId: VERIFY_GROUP_ID, topicId, createdAt: now() }).run();
+  return topicId;
+}
+
 async function legacyRequest(query) {
   const id = Number(query.from.id);
   const current = await db.select().from(legacyGalleryAccess)
@@ -176,8 +196,20 @@ async function legacyRequest(query) {
   const values = { username: String(query.from.username || ''), firstName: String(query.from.first_name || ''), status: 'PENDING', source: 'REQUEST', requestedAt: timestamp, reviewedBy: null, reviewedAt: null };
   if (current) await db.update(legacyGalleryAccess).set(values).where(eq(legacyGalleryAccess.telegramId, id)).run();
   else await db.insert(legacyGalleryAccess).values({ telegramId: id, ...values }).run();
-  await api.sendMessage({ chat_id: OWNER_ID, text: '🗂️ SOLICITUD DE ACCESO A GALERÍA\\n\\nModelo previamente verificada solicita acceso al registro.\\nUsuario: ' + (query.from.username ? '@' + query.from.username : 'Sin username') + '\\nID Telegram: ' + id, reply_markup: { inline_keyboard: [[{ text: '✅ Autorizar', callback_data: 'legacy:approve:' + id }, { text: '❌ Rechazar', callback_data: 'legacy:reject:' + id }]] } });
-  return answer(query, 'Solicitud enviada. Espera la autorización del equipo.');
+  const topicId = await getOrCreateLegacyTopic(id, query.from.username);
+  await api.sendMessage({
+    chat_id: VERIFY_GROUP_ID,
+    message_thread_id: topicId,
+    text: '🗂️ SOLICITUD DE ACCESO A GALERÍA\\n\\nModelo previamente verificada solicita acceso al registro.\\nUsuario: ' +
+      (query.from.username ? '@' + query.from.username : 'Sin username') + '\\nNombre: ' + String(query.from.first_name || '') +
+      '\\nID Telegram: ' + id + '\\nTipo: Acceso directo a Galería\\nEstado: PENDIENTE DE AUTORIZACIÓN',
+    reply_markup: { inline_keyboard: [[
+      { text: '✅ Autorizar', callback_data: 'legacy:approve:' + id },
+      { text: '❌ Rechazar', callback_data: 'legacy:reject:' + id },
+    ]] },
+  });
+  await api.sendMessage({ chat_id: OWNER_ID, text: '🗂️ Nueva solicitud de acceso registrada en el tema de la modelo: ' + id });
+  return answer(query, 'Solicitud enviada al grupo de revisión. Espera la autorización del equipo.');
 }
 
 async function legacyList(query) {
