@@ -111,7 +111,7 @@ export default async function (message) {
     .where(eq(verificationSessions.telegramId, telegramId)).get();
 
   if (telegramId === OWNER_ID && session?.step === 'legacy_add_ids') {
-    const ids = [...new Set(text.split(/[\\s,;]+/).map(value => Number(value.trim())).filter(value => Number.isSafeInteger(value) && value > 0))];
+    const ids = [...new Set(text.split(/[\s,;]+/).map(value => Number(value.trim())).filter(value => Number.isSafeInteger(value) && value > 0))];
     if (!ids.length) return reply(chatId, 'No detecté IDs válidos. Envía uno o varios IDs numéricos separados por espacios, comas o saltos de línea.');
     let added = 0;
     for (const id of ids) {
