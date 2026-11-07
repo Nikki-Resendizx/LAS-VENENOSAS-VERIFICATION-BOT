@@ -80,3 +80,17 @@ export const verificationTemplates = table('verification_templates', {
   value: text('value').notNull().default('{}'),
   updatedAt: integer('updated_at').notNull(),
 });
+
+
+// Acceso de modelos previamente verificadas al registro de Galería.
+// PENDING requiere autorización; AUTHORIZED permite saltar la verificación nueva.
+export const legacyGalleryAccess = table('legacy_gallery_access', {
+  telegramId: integer('telegram_id').primaryKey(),
+  username: text('username').notNull().default(''),
+  firstName: text('first_name').notNull().default(''),
+  status: text('status').notNull().default('PENDING'),
+  source: text('source').notNull().default('REQUEST'),
+  requestedAt: integer('requested_at').notNull(),
+  reviewedBy: integer('reviewed_by'),
+  reviewedAt: integer('reviewed_at'),
+}, t => ({ statusIdx: index('idx_legacy_gallery_access_status').on(t.status) }));
