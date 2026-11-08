@@ -75,9 +75,7 @@ export default async function (message) {
     ];
     return sendUiTemplate(chatId, 'welcome', TEMPLATE_DEFS.welcome.fallback, {
       context: { user: message.from, chat: message.chat, chat_id: chatId, id: telegramId, nombre_modelo: [message.from.first_name, message.from.last_name].filter(Boolean).join(' '), estado: 'BIENVENIDA' },
-      appendButtons: [
-        actions.map((item, index) => [{ text: String(item.text || (index ? 'Soy nueva' : 'Ya estoy verificada')), callback_data: index ? 'legacy:new' : 'legacy:request', style: ['primary', 'success', 'danger'].includes(item.style) ? item.style : (index ? 'danger' : 'success') }]),
-      ],
+      appendButtons: actions.map((item, index) => [{ text: String(item.text || (index ? 'Soy nueva' : 'Ya estoy verificada')), callback_data: index ? 'legacy:new' : 'legacy:request', style: ['primary', 'success', 'danger'].includes(item.style) ? item.style : (index ? 'danger' : 'success') }]),
     });
   }
 
