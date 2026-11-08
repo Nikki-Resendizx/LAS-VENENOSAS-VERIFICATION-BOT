@@ -193,6 +193,9 @@ async function getOrCreateLegacyTopic(telegramId, username) {
 
 async function legacyRequest(query) {
   const id = Number(query.from.id);
+  const welcomeCfg = await readTemplate('welcome_actions');
+  const customResponse = Array.isArray(welcomeCfg.actions) ? welcomeCfg.actions[0]?.response : '';
+  if (customResponse) await sendUiMessage({ chat_id: id, text: String(customResponse) });
   const current = await db.select().from(legacyGalleryAccess)
     .where(eq(legacyGalleryAccess.telegramId, id)).get();
   if (current?.status === 'AUTHORIZED') {
