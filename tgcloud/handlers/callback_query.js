@@ -63,6 +63,7 @@ async function showTemplates(chatId) {
   const rows = Object.entries(TEMPLATE_DEFS).map(([key, item]) => [{
     text: item.title, callback_data: 'verify:template:open:' + key,
   }]);
+  rows.push([{ text: '🎛️ Botones de bienvenida', callback_data: 'verify:welcome:edit' }]);
   rows.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
   return sendUiMessage({ chat_id: chatId, text: '✏️ EDITOR DE MENSAJES\\n\\nSelecciona qué mensaje deseas personalizar. Cada plantilla permite editar texto, botones y multimedia, además de probar una vista previa.', reply_markup: { inline_keyboard: rows } });
 }
@@ -292,8 +293,10 @@ export default async function (query) {
     return sendUiMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores registrados.'), reply_markup: { inline_keyboard: keyboard } });
   }
   if (data === 'legacy:new') {
-    await answer(query, 'Puedes comenzar tu verificación nueva con /solicitar.');
-    return sendUiMessage({ chat_id: actorId, text: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' });
+    const cfg = await readTemplate('welcome_actions');
+    const custom = Array.isArray(cfg.actions) ? cfg.actions[1]?.response : '';
+    await answer(query, 'Puedes comenzar tu verificación nueva.');
+    return sendUiMessage({ chat_id: actorId, text: custom || '📝 Para iniciar tu verificación desde cero, envía /solicitar.' });
   }
   if (data.startsWith('legacy:')) {
     if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ No tienes autorización para administrar estos accesos.', true);
@@ -315,6 +318,17 @@ export default async function (query) {
     return;
   }
   try {
+    if (data === 'verify:welcome:edit') {
+      await setAdminTemplateSession(actorId, 'welcome_actions', 'welcome_actions');
+      await answer(query, 'Editor de botones de bienvenida');
+      const cfg = await readTemplate('welcome_actions');
+      const defaults = [
+        { text: '💖 Ya estoy verificada', style: 'success', response: 'Acceso a Galería' },
+        { text: '✨ Soy nueva, quiero verificarme', style: 'danger', response: 'Para comenzar, envía /solicitar.' },
+      ];
+      const actions = Array.isArray(cfg.actions) && cfg.actions.length === 2 ? cfg.actions : defaults;
+      return sendUiMessage({ chat_id: actorId, text: '🎛️ CONFIGURAR BOTONES DE BIENVENIDA\\n\\nActuales:\\n1. ' + actions[0].text + ' [' + actions[0].style + ']\\n2. ' + actions[1].text + ' [' + actions[1].style + ']\\n\\nEnvía exactamente dos líneas, una por botón:\\nTítulo | color | respuesta\\n\\nColores disponibles: azul, verde o rojo. La respuesta es el mensaje que recibirá la persona al pulsar ese botón.\\nEjemplo:\\n💖 Ya estoy verificada | verde | Tu acceso está en proceso.\\n✨ Soy nueva | rojo | Envía /solicitar para comenzar.' });
+    }
     if (data === 'verify:templates') {
       await answer(query, 'Editor de mensajes');
       return showTemplates(actorId);
@@ -355,14 +369,32 @@ export default async function (query) {
       await answer(query, 'Modo de edición activado.');
       return sendUiMessage({ chat_id: actorId, text: prompts[action] });
     }
-    if (data === 'verify:list') {
-      await answer(query, 'Actualizando lista…');
-      await sendUiMessage({
-        chat_id: actorId,
-        text: 'Para actualizar las solicitudes pendientes, vuelve a enviar /admin.',
-      });
-      return;
+    if (data === 'verify:approved') {
+      const rows = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'APROBADA')
+        .sort((a, b) => Number(b.reviewedAt || 0) - Number(a.reviewedAt || 0)).slice(0, 30);
+      const keyboard = rows.map(row => [{ text: (row.username ? '@' + row.username : String(row.telegramId)), callback_data: 'verify:open:' + row.id }]);
+      keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+      await answer(query, 'Aprobadas: ' + rows.length);
+      return sendUiMessage({ chat_id: actorId, text: '✅ SOLICITUDES APROBADAS\\n\\nTotal: ' + rows.length, reply_markup: { inline_keyboard: keyboard } });
     }
+    if (data === 'verify:list') {
+      const rows = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'EN_REVISION' || row.status === 'REQUIERE_CORRECCION')
+        .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).slice(0, 30);
+      const keyboard = rows.map(row => [{ text: '📂 ' + (row.username ? '@' + row.username : String(row.telegramId)), callback_data: 'verify:open:' + row.id }]);
+      keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:panel' }]);
+      await answer(query, 'Solicitudes: ' + rows.length);
+      return sendUiMessage({ chat_id: actorId, text: '⏳ SOLICITUDES PENDIENTES\\n\\nTotal: ' + rows.length, reply_markup: { inline_keyboard: keyboard } });
+    }
+    if (data === 'verify:panel') {
+      await answer(query, 'Panel de administración');
+      const pending = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'EN_REVISION').length;
+      const approvedCount = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'APROBADA').length;
+      return sendUiMessage({ chat_id: actorId, text: '🛡️ PANEL DE ADMINISTRACIÓN\\n\\nSolicitudes pendientes: ' + pending, reply_markup: { inline_keyboard: [
+        [{ text: '🗂️ Galería', callback_data: 'legacy:list' }, { text: '➕ Agregar ID', callback_data: 'legacy:add' }, { text: '⏳ Solicitudes', callback_data: 'verify:list' }],
+        [{ text: '👑 Admins', callback_data: 'admins:list' }, { text: '📝 Plantillas', callback_data: 'verify:templates' }, { text: '✅ Aprobadas (' + approvedCount + ')', callback_data: 'verify:approved' }],
+      ] } });
+    }
+
     const open = data.match(/^verify:open:(.+)$/);
     if (open) return showRequest(query, open[1]);
     const decision = data.match(/^verify:(approve|reject|correction):(.+)$/);
