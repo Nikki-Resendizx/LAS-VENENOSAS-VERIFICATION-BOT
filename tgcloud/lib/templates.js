@@ -103,10 +103,10 @@ export function renderTemplate(input, context = {}) {
 // sin parse_mode para evitar errores por caracteres especiales.
 export function normalizeTemplateLineBreaks(value) {
   return String(value ?? '')
-    .replace(/\\r\\n|\\n|\\r/g, '\\n')
-    .replace(/\r\n/g, '\\n')
-    .replace(/<br\s*\/?\s*>/gi, '\\n')
-    .replace(/\/n/g, '\\n');
+    .replace(/\\r\\n|\\n|\\r/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/\/n/g, '\n');
 }
 
 export function detectTelegramParseMode(value) {
