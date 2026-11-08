@@ -93,7 +93,7 @@ export function renderTemplate(input, context = {}) {
   values.mencion = userId
     ? '<a href="tg://user?id=' + encodeURIComponent(String(userId)) + '">' + escapeHtml(fullName) + '</a>'
     : escapeHtml(fullName);
-  const rendered = String(input ?? '').replace(/\\{([a-z_]+)\\}/gi, (match, key) =>
+  const rendered = String(input ?? '').replace(/\{([a-z_]+)\}/gi, (match, key) =>
     Object.prototype.hasOwnProperty.call(values, key.toLowerCase()) ? String(values[key.toLowerCase()]) : match
   );
   return normalizeTemplateLineBreaks(rendered);
@@ -103,17 +103,17 @@ export function renderTemplate(input, context = {}) {
 // sin parse_mode para evitar errores por caracteres especiales.
 export function normalizeTemplateLineBreaks(value) {
   return String(value ?? '')
-    .replace(/\\\\r\\\\n|\\\\n|\\\\r/g, '\n')
-    .replace(/\\r\\n/g, '\n')
-    .replace(/<br\\s*\\/?\\s*>/gi, '\n')
-    .replace(/\\/n/g, '\n');
+    .replace(/\\r\\n|\\n|\\r/g, '\\n')
+    .replace(/\r\n/g, '\\n')
+    .replace(/<br\s*\/?\s*>/gi, '\\n')
+    .replace(/\/n/g, '\\n');
 }
 
 export function detectTelegramParseMode(value) {
   const text = String(value ?? '');
-  if (/<\\/?(?:b|strong|i|em|u|ins|s|strike|del|span|tg-spoiler|a|code|pre|blockquote)(?:\\s|>)/i.test(text)) return 'HTML';
-  if (/\\|\\||~~|__(?=\\S)|~[^~]+~/.test(text)) return 'MarkdownV2';
-  if (/(^|[^\\\\])\\*(?!\\s)[^*]+\\*(?!\\*)|(^|[^\\\\])_(?!\\s)[^_]+_(?!_)|\\x60{1,3}[^\\x60]+\\x60{1,3}|\\[[^\\]]+\\]\\(https?:\\/\\/[^)]+\\)/.test(text)) return 'Markdown';
+  if (/<\/?(?:b|strong|i|em|u|ins|s|strike|del|span|tg-spoiler|a|code|pre|blockquote)(?:\s|>)/i.test(text)) return 'HTML';
+  if (/\|\||~~|__(?=\S)|~[^~]+~/.test(text)) return 'MarkdownV2';
+  if (/(^|[^\\])\*(?!\s)[^*]+\*(?!\*)|(^|[^\\])_(?!\s)[^_]+_(?!_)|`{1,3}[^`]+`{1,3}|\[[^\]]+\]\(https?:\/\/[^)]+\)/.test(text)) return 'Markdown';
   return undefined;
 }
 
