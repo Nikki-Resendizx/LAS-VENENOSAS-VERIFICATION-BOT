@@ -68,11 +68,15 @@ export default async function (message) {
   const text = String(message.text || '').trim();
 
   if (text === '/start' || text.startsWith('/start ')) {
+    const welcomeActions = await readTemplate('welcome_actions');
+    const actions = Array.isArray(welcomeActions.actions) && welcomeActions.actions.length === 2 ? welcomeActions.actions : [
+      { text: '💖 𝐘𝐚 𝐄𝐬𝐭𝐨𝐲 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐝𝐚 💖', style: 'success', response: 'Acceso a Galería' },
+      { text: '✨ 𝐒𝐨𝐲 𝐍𝐮𝐞𝐯𝐚, 𝐐𝐮𝐢𝐞𝐫𝐨 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫𝐦𝐞 ✨', style: 'danger', response: 'Iniciar verificación' },
+    ];
     return sendUiTemplate(chatId, 'welcome', TEMPLATE_DEFS.welcome.fallback, {
       context: { user: message.from, chat: message.chat, chat_id: chatId, id: telegramId, nombre_modelo: [message.from.first_name, message.from.last_name].filter(Boolean).join(' '), estado: 'BIENVENIDA' },
       appendButtons: [
-        [{ text: '💖 𝐘𝐚 𝐄𝐬𝐭𝐨𝐲 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐝𝐚 💖', callback_data: 'legacy:request', style: 'success' }],
-        [{ text: '✨ 𝐒𝐨𝐲 𝐍𝐮𝐞𝐯𝐚, 𝐐𝐮𝐢𝐞𝐫𝐨 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫𝐦𝐞 ✨', callback_data: 'legacy:new', style: 'danger' }],
+        actions.map((item, index) => [{ text: String(item.text || (index ? 'Soy nueva' : 'Ya estoy verificada')), callback_data: index ? 'legacy:new' : 'legacy:request', style: ['primary', 'success', 'danger'].includes(item.style) ? item.style : (index ? 'danger' : 'success') }]),
       ],
     });
   }
@@ -90,18 +94,20 @@ export default async function (message) {
     const keyboard = [];
     for (let i = 0; i < pendingButtons.length; i += 3) keyboard.push(pendingButtons.slice(i, i + 3));
     const legacyPending = (await db.select().from(legacyGalleryAccess).all()).filter(row => row.status === 'PENDING');
-    const adminButtons = [
-      { text: '🗂️ Accesos a Galería (' + legacyPending.length + ')', callback_data: 'legacy:list' },
-      { text: '➕ Agregar IDs aprobados', callback_data: 'legacy:add' },
-      { text: '✏️ Editar mensajes', callback_data: 'verify:templates' },
-      { text: '👥 Administradores de apoyo', callback_data: 'admins:list' },
-      { text: '🔄 Actualizar', callback_data: 'verify:list' },
-    ];
-    for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
+    const approvedCount = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'APROBADA').length;
+    keyboard.push([
+      { text: '🗂️ Galería', callback_data: 'legacy:list' },
+      { text: '➕ Agregar ID', callback_data: 'legacy:add' },
+      { text: '⏳ Solicitudes', callback_data: 'verify:list' },
+    ]);
+    keyboard.push([
+      { text: '👑 Admins', callback_data: 'admins:list' },
+      { text: '📝 Plantillas', callback_data: 'verify:templates' },
+      { text: '✅ Aprobadas (' + approvedCount + ')', callback_data: 'verify:approved' },
+    ]);
     return sendUiMessage({
       chat_id: chatId,
-      text: '🛡️ PANEL DE VERIFICACIÓN\\n\\nSolicitudes pendientes de revisión: ' + pending.length +
-        (pending.length ? '\\nSelecciona un expediente para revisarlo.' : '\\nNo hay solicitudes pendientes.'),
+      text: '🛡️ PANEL DE ADMINISTRACIÓN\\n\\nSolicitudes pendientes de revisión: ' + pending.length + '\\nAccesos a Galería pendientes: ' + legacyPending.length,
       reply_markup: { inline_keyboard: keyboard },
     });
   }
@@ -152,6 +158,23 @@ export default async function (message) {
     }
     await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
     return sendUiMessage({ chat_id: chatId, text: '✅ Se agregaron/autorizaron ' + added + ' ID(s). Esas cuentas podrán elegir «Ya estoy verificada» y pasar al registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🗂️ Ver accesos', callback_data: 'legacy:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
+  }
+
+  if (await isVerificationAdmin(telegramId) && session?.step === 'welcome_actions') {
+    const lines = text.split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length !== 2) return reply(chatId, 'Envía exactamente dos líneas, una por botón, con el formato: Título | color | respuesta\\nColores: azul, verde o rojo.');
+    const actions = [];
+    for (const line of lines) {
+      const parts = line.split('|').map(value => value.trim());
+      if (parts.length < 3 || !parts[0] || !parts[2]) return reply(chatId, 'Formato incorrecto. Usa: Título | color | respuesta');
+      const color = parts[1].toLowerCase();
+      const style = ({ azul: 'primary', verde: 'success', rojo: 'danger' })[color];
+      if (!style) return reply(chatId, 'Color no válido. Usa azul, verde o rojo.');
+      actions.push({ text: parts[0], style, response: parts.slice(2).join(' | ') });
+    }
+    await saveTemplate('welcome_actions', { actions });
+    await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+    return sendUiMessage({ chat_id: chatId, text: '✅ Se actualizaron los títulos, colores y respuestas de los dos botones de bienvenida.', reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:welcome' }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:templates' }]] } });
   }
 
   if (await isVerificationAdmin(telegramId) && session?.step?.startsWith('template_')) {
