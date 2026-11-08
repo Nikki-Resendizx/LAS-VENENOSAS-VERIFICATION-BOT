@@ -9,7 +9,7 @@ import {
   legacyGalleryAccess,
   verificationAdmins,
 } from '../schema.js';
-import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
+import { OWNER_ID, VERIFY_GROUP_ID } from '../lib/config.js';
 import { isVerificationAdmin } from '../lib/admins.js';
 import { sendUiMessage, sendUiTemplate } from '../lib/ui.js';
 import { sendTemplate, readTemplate, saveTemplate, parseButtonRows, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
@@ -73,7 +73,6 @@ export default async function (message) {
       appendButtons: [
         [{ text: '✅ Ya estoy Verificada', callback_data: 'legacy:request', style: 'success' }],
         [{ text: '📝 Soy nueva', callback_data: 'legacy:new', style: 'danger' }],
-        [{ text: '🌐 Acceso a la WebApp de registro', web_app: { url: REGISTRATION_WEBAPP_URL }, style: 'primary' }],
       ],
     });
   }
