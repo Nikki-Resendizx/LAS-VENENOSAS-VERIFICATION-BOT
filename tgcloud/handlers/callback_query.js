@@ -6,8 +6,10 @@ import {
   verificationSessions,
   legacyGalleryAccess,
   verificationTopics,
+  verificationAdmins,
 } from '../schema.js';import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
 import { readTemplate, sendTemplate, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
+import { isVerificationAdmin } from '../lib/admins.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -47,13 +49,13 @@ async function showRequest(query, requestId) {
   await answer(query, 'Expediente abierto.');
 }
 
-async function setAdminTemplateSession(key, step) {
+async function setAdminTemplateSession(adminId, key, step) {
   const current = await db.select().from(verificationSessions)
-    .where(eq(verificationSessions.telegramId, OWNER_ID)).get();
+    .where(eq(verificationSessions.telegramId, adminId)).get();
   const values = { requestId: key, step, updatedAt: now() };
   if (current) await db.update(verificationSessions).set(values)
     .where(eq(verificationSessions.telegramId, OWNER_ID)).run();
-  else await db.insert(verificationSessions).values({ telegramId: OWNER_ID, ...values }).run();
+  else await db.insert(verificationSessions).values({ telegramId: adminId, ...values }).run();
 }
 
 async function showTemplates(chatId) {
@@ -97,17 +99,18 @@ async function handleDecision(query, action, requestId) {
   }
 
   if (action === 'correction') {
+    const adminId = Number(query.from.id);
     const ownerSession = await db.select().from(verificationSessions)
-      .where(eq(verificationSessions.telegramId, OWNER_ID)).get();
+      .where(eq(verificationSessions.telegramId, adminId)).get();
     if (ownerSession) {
       await db.update(verificationSessions).set({
         requestId,
         step: 'admin_correction',
         updatedAt: now(),
-      }).where(eq(verificationSessions.telegramId, OWNER_ID)).run();
+      }).where(eq(verificationSessions.telegramId, adminId)).run();
     } else {
       await db.insert(verificationSessions).values({
-        telegramId: OWNER_ID,
+        telegramId: adminId,
         requestId,
         step: 'admin_correction',
         updatedAt: now(),
@@ -115,7 +118,7 @@ async function handleDecision(query, action, requestId) {
     }
     await answer(query, 'Escribe en privado el motivo de la corrección.');
     await api.sendMessage({
-      chat_id: OWNER_ID,
+      chat_id: adminId,
       text: '📝 Escribe ahora el motivo o los elementos que debe corregir la persona solicitante.\\n\\nExpediente: ' + requestId,
     });
     return;
@@ -216,14 +219,14 @@ async function legacyList(query) {
   const keyboard = rows.slice(0, 30).map(row => [{ text: (row.username ? '@' + row.username : String(row.telegramId)), callback_data: 'legacy:open:' + row.telegramId }]);
   keyboard.push([{ text: '➕ Agregar IDs aprobados', callback_data: 'legacy:add' }]);
   keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
-  await api.sendMessage({ chat_id: OWNER_ID, text: '🗂️ ACCESOS A GALERÍA PENDIENTES\\n\\nSolicitudes: ' + rows.length, reply_markup: { inline_keyboard: keyboard } });
+  await api.sendMessage({ chat_id: Number(query.from.id), text: '🗂️ ACCESOS A GALERÍA PENDIENTES\\n\\nSolicitudes: ' + rows.length, reply_markup: { inline_keyboard: keyboard } });
   return answer(query, 'Lista actualizada.');
 }
 
 async function legacyOpen(query, id) {
   const row = await db.select().from(legacyGalleryAccess).where(eq(legacyGalleryAccess.telegramId, Number(id))).get();
   if (!row) return answer(query, 'No encontré esa solicitud.', true);
-  await api.sendMessage({ chat_id: OWNER_ID, text: '🗂️ SOLICITUD DE ACCESO\\n\\nUsuario: ' + (row.username ? '@' + row.username : 'Sin username') + '\\nNombre: ' + (row.firstName || 'No indicado') + '\\nID Telegram: ' + row.telegramId + '\\nEstado: ' + row.status + '\\nOrigen: ' + row.source, reply_markup: { inline_keyboard: row.status === 'PENDING' ? [[{ text: '✅ Autorizar', callback_data: 'legacy:approve:' + row.telegramId }, { text: '❌ Rechazar', callback_data: 'legacy:reject:' + row.telegramId }]] : [] } });
+  await api.sendMessage({ chat_id: Number(query.from.id), text: '🗂️ SOLICITUD DE ACCESO\\n\\nUsuario: ' + (row.username ? '@' + row.username : 'Sin username') + '\\nNombre: ' + (row.firstName || 'No indicado') + '\\nID Telegram: ' + row.telegramId + '\\nEstado: ' + row.status + '\\nOrigen: ' + row.source, reply_markup: { inline_keyboard: row.status === 'PENDING' ? [[{ text: '✅ Autorizar', callback_data: 'legacy:approve:' + row.telegramId }, { text: '❌ Rechazar', callback_data: 'legacy:reject:' + row.telegramId }]] : [] } });
   return answer(query, 'Solicitud abierta.');
 }
 
@@ -233,7 +236,7 @@ async function legacyDecision(query, action, id) {
   if (!row || row.status !== 'PENDING') return answer(query, 'La solicitud ya fue resuelta o no existe.', true);
   const status = action === 'approve' ? 'AUTHORIZED' : 'REJECTED';
   const timestamp = now();
-  await db.update(legacyGalleryAccess).set({ status, reviewedBy: OWNER_ID, reviewedAt: timestamp }).where(eq(legacyGalleryAccess.telegramId, telegramId)).run();
+  await db.update(legacyGalleryAccess).set({ status, reviewedBy: Number(query.from.id), reviewedAt: timestamp }).where(eq(legacyGalleryAccess.telegramId, telegramId)).run();
   if (action === 'approve') {
     await api.sendMessage({ chat_id: telegramId, text: '🎉 Tu acceso como modelo previamente verificada fue autorizado. Ya puedes continuar directamente con el registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🌐 Abrir WebApp de Registro', web_app: { url: REGISTRATION_WEBAPP_URL } }]] } });
   } else {
@@ -250,17 +253,45 @@ export default async function (query) {
   const actorId = Number(query.from.id);
   const data = String(query.data || '');
   if (data === 'legacy:request') return legacyRequest(query);
+  if (data === 'admins:list') {
+    if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ Acceso restringido.', true);
+    const admins = await db.select().from(verificationAdmins).all();
+    const keyboard = admins.map(row => [{ text: '🗑️ Quitar ID ' + row.telegramId, callback_data: 'admins:remove:' + row.telegramId }]);
+    if (actorId === OWNER_ID) keyboard.unshift([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
+    keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+    await answer(query, 'Administradores: ' + admins.length);
+    return api.sendMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores de apoyo registrados.') + (actorId === OWNER_ID ? '\\n\\nSolo el Owner puede agregar nuevos administradores.' : ''), reply_markup: { inline_keyboard: keyboard } });
+  }
+  if (data === 'admins:add') {
+    if (actorId !== OWNER_ID) return answer(query, '⛔ Solo el Owner puede agregar administradores.', true);
+    await setAdminTemplateSession(actorId, '', 'admin_add_ids');
+    await answer(query, 'Envía los IDs que deseas agregar.');
+    return api.sendMessage({ chat_id: actorId, text: '➕ Envía uno o varios IDs de Telegram separados por espacios, comas o saltos de línea. Solo el Owner puede agregar administradores.' });
+  }
+  const removeAdmin = data.match(/^admins:remove:(\\d+)$/);
+  if (removeAdmin) {
+    if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ Acceso restringido.', true);
+    const targetId = Number(removeAdmin[1]);
+    if (targetId === OWNER_ID) return answer(query, 'El Owner no puede ser eliminado.', true);
+    await db.delete(verificationAdmins).where(eq(verificationAdmins.telegramId, targetId)).run();
+    await answer(query, 'Administrador eliminado.');
+    const admins = await db.select().from(verificationAdmins).all();
+    const keyboard = admins.map(row => [{ text: '🗑️ Quitar ID ' + row.telegramId, callback_data: 'admins:remove:' + row.telegramId }]);
+    if (actorId === OWNER_ID) keyboard.unshift([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
+    keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+    return api.sendMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores registrados.'), reply_markup: { inline_keyboard: keyboard } });
+  }
   if (data === 'legacy:new') {
     await answer(query, 'Puedes comenzar tu verificación nueva con /solicitar.');
     return api.sendMessage({ chat_id: actorId, text: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' });
   }
   if (data.startsWith('legacy:')) {
-    if (actorId !== OWNER_ID) return answer(query, '⛔ Solo el propietario puede administrar estos accesos.', true);
+    if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ No tienes autorización para administrar estos accesos.', true);
     if (data === 'legacy:list') return legacyList(query);
     if (data === 'legacy:add') {
-      await setAdminTemplateSession('', 'legacy_add_ids');
+      await setAdminTemplateSession(actorId, '', 'legacy_add_ids');
       await answer(query, 'Modo de carga de IDs activado.');
-      return api.sendMessage({ chat_id: OWNER_ID, text: 'Envía uno o varios IDs numéricos separados por espacios, comas o saltos de línea.' });
+      return api.sendMessage({ chat_id: actorId, text: 'Envía uno o varios IDs numéricos separados por espacios, comas o saltos de línea.' });
     }
     const opened = data.match(/^legacy:open:(\\d+)$/);
     if (opened) return legacyOpen(query, opened[1]);
@@ -269,8 +300,8 @@ export default async function (query) {
     return answer(query, 'Acción de acceso no reconocida.', true);
   }
   if (!data.startsWith('verify:')) return;
-  if (actorId !== OWNER_ID) {
-    await answer(query, '⛔ Solo el propietario puede revisar expedientes.', true);
+  if (!(await isVerificationAdmin(actorId))) {
+    await answer(query, '⛔ No tienes autorización para revisar expedientes.', true);
     return;
   }
   try {
@@ -292,7 +323,7 @@ export default async function (query) {
         return sendTemplate(actorId, key, TEMPLATE_DEFS[key].fallback, { context: { user: query.from, id: query.from.id, nombre_modelo: [query.from.first_name, query.from.last_name].filter(Boolean).join(' '), estado: 'VISTA PREVIA', admin: query.from.username ? '@' + query.from.username : String(query.from.id) } });
       }
       const steps = { edittext: 'template_text', editbuttons: 'template_buttons', editmedia: 'template_media' };
-      await setAdminTemplateSession(key, steps[action]);
+      await setAdminTemplateSession(actorId, key, steps[action]);
       const prompts = {
         edittext: '📝 Envía el nuevo texto completo de esta plantilla.\\n\\nVariables disponibles:\\n' + TEMPLATE_VARIABLE_HELP,
         editbuttons: '🔘 Envía los botones con el formato: Título - https://enlace.com [azul|rojo|verde]\\nColores disponibles: [azul], [rojo] o [verde]. Si omites el color, será azul. Para colocar varios en una misma fila, sepáralos con &&. Cada nueva línea crea otra fila. Escribe quitar para eliminar todos los botones.',
