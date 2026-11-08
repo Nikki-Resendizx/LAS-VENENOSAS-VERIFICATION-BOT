@@ -31,10 +31,18 @@ async function remember(chatId, result) {
   return result;
 }
 
+function normalizeUiText(value) {
+  return String(value ?? '')
+    .replace(/\\\\r\\\\n|\\\\n|\\\\r/g, '\n')
+    .replace(/\\r\\n|\\n|\\r/g, '\n');
+}
+
 export async function sendUiMessage(params) {
   const chatId = Number(params.chat_id);
   await removePrevious(chatId);
-  const result = await api.sendMessage(params);
+  const payload = { ...params };
+  if (typeof payload.text === 'string') payload.text = normalizeUiText(payload.text);
+  const result = await api.sendMessage(payload);
   return remember(chatId, result);
 }
 
