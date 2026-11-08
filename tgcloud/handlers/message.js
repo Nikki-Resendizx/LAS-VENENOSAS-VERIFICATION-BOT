@@ -162,7 +162,7 @@ export default async function (message) {
       cfg.text = text;
       await saveTemplate(key, cfg);
       await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
-      return api.sendMessage({ chat_id: chatId, text: '✅ Texto guardado para: ' + TEMPLATE_DEFS[key].title, reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:templates' }]] } });
+      return sendUiMessage({ chat_id: chatId, text: '✅ Texto guardado para: ' + TEMPLATE_DEFS[key].title, reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:templates' }]] } });
     }
     if (session.step === 'template_buttons') {
       try {
@@ -309,7 +309,7 @@ export default async function (message) {
     await db.update(verificationSessions).set({ step: 'foto_zing', updatedAt: now() })
       .where(eq(verificationSessions.telegramId, telegramId)).run();
     await reply(chatId, '🎥 Videomensaje recibido y enviado a tu expediente privado.');
-    return sendTemplate(chatId, 'zing', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
+    return sendUiTemplate(chatId, 'zing', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
   }
 
   if (session.step === 'foto_zing') {
