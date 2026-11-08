@@ -106,7 +106,7 @@ export function normalizeTemplateLineBreaks(value) {
     .replace(/\\r\\n|\\n|\\r/g, '\n')
     .replace(/\r\n/g, '\n')
     .replace(/<br\s*\/?\s*>/gi, '\n')
-    .replace(/\/n/g, '\n');
+    .replace(/(^|[ \t])\/n(?=[ \t]|$)/gm, '$1\\n');
 }
 
 export function detectTelegramParseMode(value) {
