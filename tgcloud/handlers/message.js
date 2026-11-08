@@ -306,35 +306,53 @@ export default async function (message) {
   }
 
   if (session.step === 'referencias') {
-    if (text.length < 5 || text.length > 3500) {
-      return reply(chatId, 'Envía tus referencias en un mensaje de texto de entre 5 y 3500 caracteres. Si no tienes referencias, explica brevemente tu situación.');
+    if (text.toLowerCase() === '/finalizar' || text.toLowerCase() === 'finalizar') {
+      const topic = await db.select().from(verificationTopics).where(eq(verificationTopics.requestId, session.requestId)).get();
+      if (!topic) return reply(chatId, 'No encontré el tema privado de tu expediente. Contacta al equipo para continuar.');
+      await sendTemplate(VERIFY_GROUP_ID, 'topic_complete', TEMPLATE_DEFS.topic_complete.fallback, {
+        message_thread_id: Number(topic.topicId),
+        context: { user: message.from, chat: message.chat, chat_id: VERIFY_GROUP_ID, estado: 'EN_REVISION', expediente: session.requestId },
+        reply_markup: { inline_keyboard: [[
+          { text: '✅ Aprobar', callback_data: 'verify:approve:' + session.requestId },
+          { text: '📝 Solicitar corrección', callback_data: 'verify:correction:' + session.requestId },
+        ], [
+          { text: '❌ Rechazar', callback_data: 'verify:reject:' + session.requestId },
+        ]] },
+      });
+      await db.update(verificationRequests).set({ status: 'EN_REVISION', updatedAt: now() })
+        .where(eq(verificationRequests.id, session.requestId)).run();
+      const evidenceRows = await db.select().from(verificationEvidence).where(eq(verificationEvidence.requestId, session.requestId)).all();
+      await db.insert(verificationAudit).values({
+        id: session.requestId + '-submitted-' + now(),
+        requestId: session.requestId,
+        actorTelegramId: telegramId,
+        action: 'SOLICITUD_ENVIADA',
+        details: JSON.stringify({ evidence: evidenceRows.map(row => row.evidenceType) }),
+        createdAt: now(),
+      }).run();
+      await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+      return reply(chatId, '🎉 ¡Tu solicitud fue enviada correctamente!\n\nTus referencias quedaron incorporadas al expediente y el estado es EN REVISIÓN. El equipo autorizado revisará tus evidencias y te notificará si necesita alguna corrección o cuando exista una resolución.');
+    }
+
+    const isPhoto = Array.isArray(message.photo) && message.photo.length > 0;
+    const referenceText = String(message.text || message.caption || '').trim();
+    const hasText = Boolean(referenceText);
+    if (!isPhoto && !hasText) {
+      return reply(chatId, 'En esta etapa puedes enviar texto, enlaces o un álbum de fotos. Cuando termines de enviar todas tus referencias, escribe /finalizar.');
+    }
+    if (hasText && referenceText.length > 3500) {
+      return reply(chatId, 'El texto o la descripción de tus referencias no debe superar los 3500 caracteres.');
     }
     const topic = await db.select().from(verificationTopics).where(eq(verificationTopics.requestId, session.requestId)).get();
+    if (!topic) return reply(chatId, 'No encontré el tema privado de tu expediente. Contacta al equipo para continuar.');
+
+    if (isPhoto) {
+      const photo = message.photo[message.photo.length - 1];
+      await saveEvidence(session.requestId, 'REFERENCIAS_FOTO', message, String(photo.file_id || ''), String(photo.file_unique_id || ''));
+    } else {
+      await saveEvidence(session.requestId, 'REFERENCIAS_TEXTO', message);
+    }
     await forwardEvidence(message, Number(topic.topicId));
-    await sendTemplate(VERIFY_GROUP_ID, 'topic_complete', TEMPLATE_DEFS.topic_complete.fallback, {
-      message_thread_id: Number(topic.topicId),
-      context: { user: message.from, chat: message.chat, chat_id: VERIFY_GROUP_ID, estado: 'EN_REVISION', expediente: session.requestId },
-      reply_markup: { inline_keyboard: [[
-        { text: '✅ Aprobar', callback_data: 'verify:approve:' + session.requestId },
-        { text: '📝 Solicitar corrección', callback_data: 'verify:correction:' + session.requestId },
-      ], [
-        { text: '❌ Rechazar', callback_data: 'verify:reject:' + session.requestId },
-      ]] },
-    });
-    await db.update(verificationRequests).set({
-      status: 'EN_REVISION',
-      updatedAt: now(),
-    }).where(eq(verificationRequests.id, session.requestId)).run();
-    await db.insert(verificationAudit).values({
-      id: session.requestId + '-submitted-' + now(),
-      requestId: session.requestId,
-      actorTelegramId: telegramId,
-      action: 'SOLICITUD_ENVIADA',
-      details: JSON.stringify({ evidence: ['VIDEOMENSAJE', 'FOTO_ZING', 'REFERENCIAS'] }),
-      createdAt: now(),
-    }).run();
-    await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
-    return reply(chatId,
-      '🎉 ¡Tu solicitud fue enviada correctamente!\n\nTu expediente quedó en estado: EN REVISIÓN. El equipo autorizado revisará tus evidencias y te notificará si necesita alguna corrección o cuando exista una resolución.\n\nPor seguridad, no envíes nuevamente tus evidencias salvo que el equipo te lo solicite.');
+    return reply(chatId, '✅ Referencia recibida y añadida a tu expediente. Puedes enviar más textos, enlaces o fotos. Cuando termines, escribe /finalizar.');
   }
 }
