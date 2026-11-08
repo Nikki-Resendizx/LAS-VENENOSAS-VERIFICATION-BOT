@@ -103,3 +103,18 @@ export const verificationUiMessages = table('verification_ui_messages', {
   messageId: integer('message_id').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+
+
+// Registro de todas las cuentas que interactúan con el bot y su estado de acceso.
+export const verificationUsers = table('verification_users', {
+  telegramId: integer('telegram_id').primaryKey(),
+  username: text('username').notNull().default(''),
+  firstName: text('first_name').notNull().default(''),
+  lastName: text('last_name').notNull().default(''),
+  status: text('status').notNull().default('ACTIVE'),
+  firstSeenAt: integer('first_seen_at').notNull(),
+  lastSeenAt: integer('last_seen_at').notNull(),
+}, t => ({
+  statusIdx: index('idx_verification_users_status').on(t.status),
+  usernameIdx: index('idx_verification_users_username').on(t.username),
+}));
