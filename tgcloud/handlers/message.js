@@ -87,12 +87,7 @@ export default async function (message) {
       .filter(row => row.status === 'EN_REVISION')
       .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
       .slice(0, 15);
-    const pendingButtons = pending.map(row => ({
-      text: '📂 ' + (row.username ? '@' + row.username : String(row.telegramId)),
-      callback_data: 'verify:open:' + row.id,
-    }));
     const keyboard = [];
-    for (let i = 0; i < pendingButtons.length; i += 3) keyboard.push(pendingButtons.slice(i, i + 3));
     const legacyPending = (await db.select().from(legacyGalleryAccess).all()).filter(row => row.status === 'PENDING');
     const approvedCount = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'APROBADA').length;
     keyboard.push([
