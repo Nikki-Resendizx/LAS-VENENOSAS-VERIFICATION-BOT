@@ -71,7 +71,7 @@ export default async function (message) {
     const welcomeActions = await readTemplate('welcome_actions');
     const actions = Array.isArray(welcomeActions.actions) && welcomeActions.actions.length === 2 ? welcomeActions.actions : [
       { text: '💖 𝐘𝐚 𝐄𝐬𝐭𝐨𝐲 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐝𝐚 💖', style: 'success', response: 'Acceso a Galería' },
-      { text: '✨ 𝐒𝐨𝐲 𝐍𝐮𝐞𝐯𝐚, 𝐐𝐮𝐢𝐞𝐫𝐨 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫𝐦𝐞 ✨', style: 'danger', response: 'Iniciar verificación' },
+      { text: '✨ 𝐒𝐨𝐲 𝐍𝐮𝐞𝐯𝐚, 𝐐𝐮𝐢𝐞𝐫𝐨 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫𝐦𝐞 ✨', style: 'danger', response: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' },
     ];
     return sendUiTemplate(chatId, 'welcome', TEMPLATE_DEFS.welcome.fallback, {
       context: { user: message.from, chat: message.chat, chat_id: chatId, id: telegramId, nombre_modelo: [message.from.first_name, message.from.last_name].filter(Boolean).join(' '), estado: 'BIENVENIDA' },
