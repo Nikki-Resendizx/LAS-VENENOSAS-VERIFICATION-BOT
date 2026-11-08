@@ -7,6 +7,7 @@ import {
   legacyGalleryAccess,
   verificationTopics,
   verificationAdmins,
+  verificationUsers,
 } from '../schema.js';import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
 import { readTemplate, saveTemplate, sendTemplate, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
 import { isVerificationAdmin } from '../lib/admins.js';
@@ -263,6 +264,96 @@ export default async function (query) {
   const actorId = Number(query.from.id);
   const data = String(query.data || '');
   if (data === 'legacy:request') return legacyRequest(query);
+
+  if (data.startsWith('users:')) {
+    if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ Acceso restringido.', true);
+    if (data === 'users:list') {
+      const rows = (await db.select().from(verificationUsers).all())
+        .sort((a, b) => Number(b.lastSeenAt || 0) - Number(a.lastSeenAt || 0));
+      const buttons = rows.slice(0, 40).map(row => [{
+        text: (row.status === 'BANNED' ? '🚫 ' : '👤 ') +
+          (row.username ? '@' + row.username : [row.firstName, row.lastName].filter(Boolean).join(' ') || String(row.telegramId)),
+        callback_data: 'users:open:' + row.telegramId,
+      }]);
+      buttons.push([{ text: '↩️ Volver al panel', callback_data: 'verify:panel' }]);
+      await answer(query, 'Usuarios registrados: ' + rows.length);
+      return sendUiMessage({
+        chat_id: actorId,
+        text: '👤 USUARIOS DEL BOT\n\nTotal registrados: ' + rows.length +
+          '\nActivos: ' + rows.filter(row => row.status !== 'BANNED').length +
+          '\nBaneados: ' + rows.filter(row => row.status === 'BANNED').length +
+          '\n\nSelecciona una cuenta para administrar su acceso. Se muestran los 40 usuarios con actividad más reciente.',
+        reply_markup: { inline_keyboard: buttons },
+      });
+    }
+    const opened = data.match(/^users:open:(\d+)$/);
+    if (opened) {
+      const row = await db.select().from(verificationUsers)
+        .where(eq(verificationUsers.telegramId, Number(opened[1]))).get();
+      if (!row) return answer(query, 'No encontré ese usuario.', true);
+      const fullName = [row.firstName, row.lastName].filter(Boolean).join(' ') || 'No indicado';
+      const date = value => value ? new Date(Number(value) * 1000).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }) : 'No disponible';
+      const isBanned = row.status === 'BANNED';
+      return sendUiMessage({
+        chat_id: actorId,
+        text: (isBanned ? '🚫 USUARIO BANEADO' : '👤 PERFIL DE USUARIO') +
+          '\n\nNombre: ' + fullName +
+          '\nUsuario: ' + (row.username ? '@' + row.username : 'Sin username') +
+          '\nID Telegram: ' + row.telegramId +
+          '\nEstado: ' + (isBanned ? 'BANEADO' : 'ACTIVO') +
+          '\nPrimer ingreso: ' + date(row.firstSeenAt) +
+          '\nÚltima actividad: ' + date(row.lastSeenAt),
+        reply_markup: { inline_keyboard: [
+          [isBanned
+            ? { text: '♻️ Desbanear usuario', callback_data: 'users:unban:' + row.telegramId }
+            : { text: '🚫 Banear usuario', callback_data: 'users:ban:' + row.telegramId }],
+          [{ text: '↩️ Volver a usuarios', callback_data: 'users:list' }],
+        ] },
+      });
+    }
+    const action = data.match(/^users:(ban|unban):(\d+)$/);
+    if (action) {
+      const targetId = Number(action[2]);
+      if (targetId === Number(OWNER_ID) || await isVerificationAdmin(targetId)) {
+        return answer(query, 'No puedes modificar el acceso de un administrador.', true);
+      }
+      const row = await db.select().from(verificationUsers)
+        .where(eq(verificationUsers.telegramId, targetId)).get();
+      if (!row) return answer(query, 'El usuario no existe en el registro.', true);
+      const status = action[1] === 'ban' ? 'BANNED' : 'ACTIVE';
+      await db.update(verificationUsers).set({ status, lastSeenAt: now() })
+        .where(eq(verificationUsers.telegramId, targetId)).run();
+      try {
+        await api.sendMessage({
+          chat_id: targetId,
+          text: status === 'BANNED'
+            ? '🚫 Tu acceso a este bot ha sido bloqueado por el equipo de administración.'
+            : '✅ Tu acceso al bot ha sido restablecido. Ya puedes volver a utilizarlo.',
+        });
+      } catch (error) {
+        console.log('No se pudo notificar el cambio de acceso al usuario:', String(error));
+      }
+      await answer(query, status === 'BANNED' ? 'Usuario baneado.' : 'Usuario desbaneado.');
+      const updated = await db.select().from(verificationUsers)
+        .where(eq(verificationUsers.telegramId, targetId)).get();
+      const fullName = [updated.firstName, updated.lastName].filter(Boolean).join(' ') || 'No indicado';
+      return sendUiMessage({
+        chat_id: actorId,
+        text: (status === 'BANNED' ? '🚫 USUARIO BANEADO' : '👤 USUARIO ACTIVO') +
+          '\n\nNombre: ' + fullName +
+          '\nUsuario: ' + (updated.username ? '@' + updated.username : 'Sin username') +
+          '\nID Telegram: ' + targetId,
+        reply_markup: { inline_keyboard: [
+          [status === 'BANNED'
+            ? { text: '♻️ Desbanear usuario', callback_data: 'users:unban:' + targetId }
+            : { text: '🚫 Banear usuario', callback_data: 'users:ban:' + targetId }],
+          [{ text: '↩️ Volver a usuarios', callback_data: 'users:list' }],
+        ] },
+      });
+    }
+    return answer(query, 'Acción de usuarios no reconocida.', true);
+  }
+
   if (data === 'admins:list') {
     if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ Acceso restringido.', true);
     const admins = await db.select().from(verificationAdmins).all();
@@ -395,6 +486,7 @@ export default async function (query) {
       return sendUiMessage({ chat_id: actorId, text: '🛡️ PANEL DE ADMINISTRACIÓN\\n\\nSolicitudes pendientes: ' + pending, reply_markup: { inline_keyboard: [
         [{ text: '🗂️ Galería', callback_data: 'legacy:list' }, { text: '➕ Agregar ID', callback_data: 'legacy:add' }, { text: '⏳ Solicitudes', callback_data: 'verify:panel' }],
         [{ text: '👑 Admins', callback_data: 'admins:list' }, { text: '📝 Plantillas', callback_data: 'verify:templates' }, { text: '✅ Aprobadas (' + approvedCount + ')', callback_data: 'verify:approved' }],
+        [{ text: '👤 Usuarios', callback_data: 'users:list' }],
       ] } });
     }
 
