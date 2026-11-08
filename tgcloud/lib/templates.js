@@ -112,7 +112,7 @@ export function normalizeTemplateLineBreaks(value) {
 export function detectTelegramParseMode(value) {
   const text = String(value ?? '');
   if (/<\/?(?:b|strong|i|em|u|ins|s|strike|del|span|tg-spoiler|a|code|pre|blockquote)(?:\s|>)/i.test(text)) return 'HTML';
-  if (/\|\||~~|__(?=\S)|~[^~]+~/.test(text)) return 'MarkdownV2';
+  if (/\|\||__(?=\S)|~[^~]+~/.test(text)) return 'MarkdownV2';
   if (/(^|[^\\])\*(?!\s)[^*]+\*(?!\*)|(^|[^\\])_(?!\s)[^_]+_(?!_)|`{1,3}[^`]+`{1,3}|\[[^\]]+\]\(https?:\/\/[^)]+\)/.test(text)) return 'Markdown';
   return undefined;
 }
