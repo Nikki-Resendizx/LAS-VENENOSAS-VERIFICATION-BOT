@@ -54,7 +54,7 @@ async function setAdminTemplateSession(adminId, key, step) {
     .where(eq(verificationSessions.telegramId, adminId)).get();
   const values = { requestId: key, step, updatedAt: now() };
   if (current) await db.update(verificationSessions).set(values)
-    .where(eq(verificationSessions.telegramId, OWNER_ID)).run();
+    .where(eq(verificationSessions.telegramId, adminId)).run();
   else await db.insert(verificationSessions).values({ telegramId: adminId, ...values }).run();
 }
 
@@ -268,7 +268,7 @@ export default async function (query) {
     await answer(query, 'Envía los IDs que deseas agregar.');
     return api.sendMessage({ chat_id: actorId, text: '➕ Envía uno o varios IDs de Telegram separados por espacios, comas o saltos de línea. Solo el Owner puede agregar administradores.' });
   }
-  const removeAdmin = data.match(/^admins:remove:(\\d+)$/);
+  const removeAdmin = data.match(/^admins:remove:(\d+)$/);
   if (removeAdmin) {
     if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ Acceso restringido.', true);
     const targetId = Number(removeAdmin[1]);
