@@ -71,8 +71,8 @@ export default async function (message) {
     return sendUiTemplate(chatId, 'welcome', TEMPLATE_DEFS.welcome.fallback, {
       context: { user: message.from, chat: message.chat, chat_id: chatId, id: telegramId, nombre_modelo: [message.from.first_name, message.from.last_name].filter(Boolean).join(' '), estado: 'BIENVENIDA' },
       appendButtons: [
-        [{ text: '✅ Ya estoy Verificada', callback_data: 'legacy:request', style: 'success' }],
-        [{ text: '📝 Soy nueva', callback_data: 'legacy:new', style: 'danger' }],
+        [{ text: '💖 𝐘𝐚 𝐄𝐬𝐭𝐨𝐲 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐝𝐚 💖', callback_data: 'legacy:request', style: 'success' }],
+        [{ text: '✨ 𝐒𝐨𝐲 𝐍𝐮𝐞𝐯𝐚, 𝐐𝐮𝐢𝐞𝐫𝐨 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫𝐦𝐞 ✨', callback_data: 'legacy:new', style: 'danger' }],
       ],
     });
   }
