@@ -64,7 +64,7 @@ async function showTemplates(chatId) {
     text: item.title, callback_data: 'verify:template:open:' + key,
   }]);
   rows.push([{ text: '🎛️ Botones de bienvenida', callback_data: 'verify:welcome:edit' }]);
-  rows.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+  rows.push([{ text: '↩️ Volver al panel', callback_data: 'verify:panel' }]);
   return sendUiMessage({ chat_id: chatId, text: '✏️ EDITOR DE MENSAJES\\n\\nSelecciona qué mensaje deseas personalizar. Cada plantilla permite editar texto, botones y multimedia, además de probar una vista previa.', reply_markup: { inline_keyboard: rows } });
 }
 
@@ -228,7 +228,7 @@ async function legacyList(query) {
   const rows = (await db.select().from(legacyGalleryAccess).all()).filter(row => row.status === 'PENDING');
   const keyboard = rows.slice(0, 30).map(row => [{ text: (row.username ? '@' + row.username : String(row.telegramId)), callback_data: 'legacy:open:' + row.telegramId }]);
   keyboard.push([{ text: '➕ Agregar IDs aprobados', callback_data: 'legacy:add' }]);
-  keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+  keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:panel' }]);
   await sendUiMessage({ chat_id: Number(query.from.id), text: '🗂️ ACCESOS A GALERÍA PENDIENTES\\n\\nSolicitudes: ' + rows.length, reply_markup: { inline_keyboard: keyboard } });
   return answer(query, 'Lista actualizada.');
 }
@@ -270,7 +270,7 @@ export default async function (query) {
     const keyboard = [];
     if (actorId === OWNER_ID) keyboard.push([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
     for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
-    keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+    keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:panel' }]);
     await answer(query, 'Administradores: ' + admins.length);
     return sendUiMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores de apoyo registrados.') + (actorId === OWNER_ID ? '\\n\\nSolo el Owner puede agregar nuevos administradores.' : ''), reply_markup: { inline_keyboard: keyboard } });
   }
@@ -292,7 +292,7 @@ export default async function (query) {
     const keyboard = [];
     if (actorId === OWNER_ID) keyboard.push([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
     for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
-    keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+    keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:panel' }]);
     return sendUiMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores registrados.'), reply_markup: { inline_keyboard: keyboard } });
   }
   if (data === 'legacy:new') {
@@ -327,7 +327,7 @@ export default async function (query) {
       const cfg = await readTemplate('welcome_actions');
       const defaults = [
         { text: '💖 Ya estoy verificada', style: 'success', response: 'Acceso a Galería' },
-        { text: '✨ Soy nueva, quiero verificarme', style: 'danger', response: 'Para comenzar, envía /solicitar.' },
+        { text: '✨ Soy nueva, quiero verificarme', style: 'danger', response: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' },
       ];
       const actions = Array.isArray(cfg.actions) && cfg.actions.length === 2 ? cfg.actions : defaults;
       return sendUiMessage({ chat_id: actorId, text: '🎛️ CONFIGURAR BOTONES DE BIENVENIDA\\n\\nActuales:\\n1. ' + actions[0].text + ' [' + actions[0].style + ']\\n2. ' + actions[1].text + ' [' + actions[1].style + ']\\n\\nEnvía exactamente dos líneas, una por botón:\\nTítulo | color | respuesta\\n\\nColores disponibles: azul, verde o rojo. La respuesta es el mensaje que recibirá la persona al pulsar ese botón.\\nEjemplo:\\n💖 Ya estoy verificada | verde | Tu acceso está en proceso.\\n✨ Soy nueva | rojo | Envía /solicitar para comenzar.' });
@@ -376,7 +376,7 @@ export default async function (query) {
       const rows = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'APROBADA')
         .sort((a, b) => Number(b.reviewedAt || 0) - Number(a.reviewedAt || 0)).slice(0, 30);
       const keyboard = rows.map(row => [{ text: (row.username ? '@' + row.username : String(row.telegramId)), callback_data: 'verify:open:' + row.id }]);
-      keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
+      keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:panel' }]);
       await answer(query, 'Aprobadas: ' + rows.length);
       return sendUiMessage({ chat_id: actorId, text: '✅ SOLICITUDES APROBADAS\\n\\nTotal: ' + rows.length, reply_markup: { inline_keyboard: keyboard } });
     }
@@ -393,7 +393,7 @@ export default async function (query) {
       const pending = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'EN_REVISION').length;
       const approvedCount = (await db.select().from(verificationRequests).all()).filter(row => row.status === 'APROBADA').length;
       return sendUiMessage({ chat_id: actorId, text: '🛡️ PANEL DE ADMINISTRACIÓN\\n\\nSolicitudes pendientes: ' + pending, reply_markup: { inline_keyboard: [
-        [{ text: '🗂️ Galería', callback_data: 'legacy:list' }, { text: '➕ Agregar ID', callback_data: 'legacy:add' }, { text: '⏳ Solicitudes', callback_data: 'verify:list' }],
+        [{ text: '🗂️ Galería', callback_data: 'legacy:list' }, { text: '➕ Agregar ID', callback_data: 'legacy:add' }, { text: '⏳ Solicitudes', callback_data: 'verify:panel' }],
         [{ text: '👑 Admins', callback_data: 'admins:list' }, { text: '📝 Plantillas', callback_data: 'verify:templates' }, { text: '✅ Aprobadas (' + approvedCount + ')', callback_data: 'verify:approved' }],
       ] } });
     }
