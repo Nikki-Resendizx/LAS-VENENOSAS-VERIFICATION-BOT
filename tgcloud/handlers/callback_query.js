@@ -263,6 +263,11 @@ export default async function (query) {
   if (!query?.id || !query?.from) return;
   const actorId = Number(query.from.id);
   const data = String(query.data || '');
+  if (!(await isVerificationAdmin(actorId))) {
+    const user = await db.select().from(verificationUsers)
+      .where(eq(verificationUsers.telegramId, actorId)).get();
+    if (user?.status === 'BANNED') return answer(query, '⛔ Tu acceso a este bot está bloqueado.', true);
+  }
   if (data === 'legacy:request') return legacyRequest(query);
 
   if (data.startsWith('users:')) {
