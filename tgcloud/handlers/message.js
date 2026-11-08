@@ -184,14 +184,14 @@ export default async function (message) {
         message.from.username,
         [message.from.first_name, message.from.last_name].filter(Boolean).join(' '),
       );
-      if (!(text === '/start' || text.startsWith('/start '))) {
-        await api.forwardMessage({
-          chat_id: VERIFY_GROUP_ID,
-          from_chat_id: chatId,
-          message_id: Number(message.message_id),
-          message_thread_id: topicId,
-        });
-      }
+      // Reflejar absolutamente todos los mensajes privados de la persona,
+      // incluido /start, dentro de su tema permanente.
+      await api.forwardMessage({
+        chat_id: VERIFY_GROUP_ID,
+        from_chat_id: chatId,
+        message_id: Number(message.message_id),
+        message_thread_id: topicId,
+      });
     } catch (error) {
       console.log('No se pudo sincronizar el mensaje con el tema del usuario:', String(error));
     }
