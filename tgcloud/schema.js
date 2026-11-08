@@ -94,3 +94,12 @@ export const legacyGalleryAccess = table('legacy_gallery_access', {
   reviewedBy: integer('reviewed_by'),
   reviewedAt: integer('reviewed_at'),
 }, t => ({ statusIdx: index('idx_legacy_gallery_access_status').on(t.status) }));
+
+
+// Último mensaje de interfaz enviado por el bot a cada chat privado.
+// Permite reemplazar pantallas y avisos sin acumular mensajes.
+export const verificationUiMessages = table('verification_ui_messages', {
+  chatId: integer('chat_id').primaryKey(),
+  messageId: integer('message_id').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
