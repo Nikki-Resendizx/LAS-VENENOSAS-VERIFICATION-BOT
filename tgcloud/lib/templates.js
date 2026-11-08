@@ -93,15 +93,35 @@ export function renderTemplate(input, context = {}) {
   values.mencion = userId
     ? '<a href="tg://user?id=' + encodeURIComponent(String(userId)) + '">' + escapeHtml(fullName) + '</a>'
     : escapeHtml(fullName);
-  return String(input ?? '').replace(/\{([a-z_]+)\}/gi, (match, key) =>
+  const rendered = String(input ?? '').replace(/\\{([a-z_]+)\\}/gi, (match, key) =>
     Object.prototype.hasOwnProperty.call(values, key.toLowerCase()) ? String(values[key.toLowerCase()]) : match
   );
+  return normalizeTemplateLineBreaks(rendered);
+}
+
+// Telegram admite HTML, Markdown y MarkdownV2. El texto sin formato se envía
+// sin parse_mode para evitar errores por caracteres especiales.
+export function normalizeTemplateLineBreaks(value) {
+  return String(value ?? '')
+    .replace(/\\\\r\\\\n|\\\\n|\\\\r/g, '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/<br\\s*\\/?\\s*>/gi, '\n')
+    .replace(/\\/n/g, '\n');
+}
+
+export function detectTelegramParseMode(value) {
+  const text = String(value ?? '');
+  if (/<\\/?(?:b|strong|i|em|u|ins|s|strike|del|span|tg-spoiler|a|code|pre|blockquote)(?:\\s|>)/i.test(text)) return 'HTML';
+  if (/\\|\\||~~|__(?=\\S)|~[^~]+~/.test(text)) return 'MarkdownV2';
+  if (/(^|[^\\\\])\\*(?!\\s)[^*]+\\*(?!\\*)|(^|[^\\\\])_(?!\\s)[^_]+_(?!_)|\\x60{1,3}[^\\x60]+\\x60{1,3}|\\[[^\\]]+\\]\\(https?:\\/\\/[^)]+\\)/.test(text)) return 'Markdown';
+  return undefined;
 }
 
 export async function sendTemplate(chatId, key, fallback, extra = {}) {
   const cfg = await readTemplate(key);
   const context = extra.context || {};
   const text = renderTemplate(String(cfg.text || fallback || TEMPLATE_DEFS[key]?.fallback || ''), context);
+  const parse_mode = detectTelegramParseMode(text);
   const configuredKeyboard = keyboardFromButtons(cfg.buttons, context);
   const appendRows = Array.isArray(extra.appendButtons) ? extra.appendButtons : [];
   const baseRows = extra.reply_markup?.inline_keyboard || configuredKeyboard?.inline_keyboard || [];
@@ -112,14 +132,14 @@ export async function sendTemplate(chatId, key, fallback, extra = {}) {
   if (cfg.media?.fileId && cfg.media?.type) {
     const m = cfg.media;
     const caption = text.slice(0, 1000);
-    if (m.type === 'photo') return api.sendPhoto({ ...common, photo: m.fileId, caption, parse_mode: 'HTML' });
-    if (m.type === 'video') return api.sendVideo({ ...common, video: m.fileId, caption, parse_mode: 'HTML' });
-    if (m.type === 'animation') return api.sendAnimation({ ...common, animation: m.fileId, caption, parse_mode: 'HTML' });
-    if (m.type === 'document') return api.sendDocument({ ...common, document: m.fileId, caption, parse_mode: 'HTML' });
-    if (m.type === 'audio') return api.sendAudio({ ...common, audio: m.fileId, caption, parse_mode: 'HTML' });
-    if (m.type === 'voice') return api.sendVoice({ ...common, voice: m.fileId, caption, parse_mode: 'HTML' });
+    if (m.type === 'photo') return api.sendPhoto({ ...common, photo: m.fileId, caption, ...(parse_mode ? { parse_mode } : {}) });
+    if (m.type === 'video') return api.sendVideo({ ...common, video: m.fileId, caption, ...(parse_mode ? { parse_mode } : {}) });
+    if (m.type === 'animation') return api.sendAnimation({ ...common, animation: m.fileId, caption, ...(parse_mode ? { parse_mode } : {}) });
+    if (m.type === 'document') return api.sendDocument({ ...common, document: m.fileId, caption, ...(parse_mode ? { parse_mode } : {}) });
+    if (m.type === 'audio') return api.sendAudio({ ...common, audio: m.fileId, caption, ...(parse_mode ? { parse_mode } : {}) });
+    if (m.type === 'voice') return api.sendVoice({ ...common, voice: m.fileId, caption, ...(parse_mode ? { parse_mode } : {}) });
   }
-  return api.sendMessage({ ...common, text, parse_mode: 'HTML' });
+  return api.sendMessage({ ...common, text, ...(parse_mode ? { parse_mode } : {}) });
 }
 
 export function parseButtonRows(input) {
