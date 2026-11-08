@@ -8,6 +8,7 @@ import {
   verificationTopics,
   legacyGalleryAccess,
   verificationAdmins,
+  verificationUsers,
 } from '../schema.js';
 import { OWNER_ID, VERIFY_GROUP_ID } from '../lib/config.js';
 import { isVerificationAdmin } from '../lib/admins.js';
@@ -148,6 +149,30 @@ export default async function (message) {
   const telegramId = Number(message.from.id);
   const text = String(message.text || '').trim();
 
+  // Registro persistente de cada cuenta que entra en contacto con el bot.
+  const existingUser = await db.select().from(verificationUsers)
+    .where(eq(verificationUsers.telegramId, telegramId)).get();
+  const userValues = {
+    username: String(message.from.username || ''),
+    firstName: String(message.from.first_name || ''),
+    lastName: String(message.from.last_name || ''),
+    lastSeenAt: now(),
+  };
+  if (existingUser) {
+    await db.update(verificationUsers).set(userValues)
+      .where(eq(verificationUsers.telegramId, telegramId)).run();
+  } else {
+    await db.insert(verificationUsers).values({
+      telegramId, ...userValues, status: 'ACTIVE', firstSeenAt: now(),
+    }).run();
+  }
+
+  const registeredUser = existingUser || await db.select().from(verificationUsers)
+    .where(eq(verificationUsers.telegramId, telegramId)).get();
+  if (registeredUser?.status === 'BANNED' && !(await isVerificationAdmin(telegramId))) {
+    return reply(chatId, '⛔ Tu acceso a este bot ha sido bloqueado por el equipo de administración.');
+  }
+
   // Cada persona obtiene su tema desde el primer /start. Después, todos sus
   // mensajes privados se reflejan allí, independientemente de la etapa.
   if (!(await isVerificationAdmin(telegramId))) {
@@ -201,6 +226,7 @@ export default async function (message) {
       { text: '📝 Plantillas', callback_data: 'verify:templates' },
       { text: '✅ Aprobadas (' + approvedCount + ')', callback_data: 'verify:approved' },
     ]);
+    keyboard.push([{ text: '👤 Usuarios', callback_data: 'users:list' }]);
     return sendUiMessage({
       chat_id: chatId,
       text: '🛡️ PANEL DE ADMINISTRACIÓN\\n\\nSolicitudes pendientes de revisión: ' + pending.length + '\\nAccesos a Galería pendientes: ' + legacyPending.length,
