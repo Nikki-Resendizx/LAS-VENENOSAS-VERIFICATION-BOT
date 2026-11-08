@@ -256,8 +256,10 @@ export default async function (query) {
   if (data === 'admins:list') {
     if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ Acceso restringido.', true);
     const admins = await db.select().from(verificationAdmins).all();
-    const keyboard = admins.map(row => [{ text: '🗑️ Quitar ID ' + row.telegramId, callback_data: 'admins:remove:' + row.telegramId }]);
-    if (actorId === OWNER_ID) keyboard.unshift([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
+    const adminButtons = admins.map(row => ({ text: '🗑️ Quitar ID ' + row.telegramId, callback_data: 'admins:remove:' + row.telegramId }));
+    const keyboard = [];
+    if (actorId === OWNER_ID) keyboard.push([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
+    for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
     keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
     await answer(query, 'Administradores: ' + admins.length);
     return api.sendMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores de apoyo registrados.') + (actorId === OWNER_ID ? '\\n\\nSolo el Owner puede agregar nuevos administradores.' : ''), reply_markup: { inline_keyboard: keyboard } });
@@ -276,8 +278,10 @@ export default async function (query) {
     await db.delete(verificationAdmins).where(eq(verificationAdmins.telegramId, targetId)).run();
     await answer(query, 'Administrador eliminado.');
     const admins = await db.select().from(verificationAdmins).all();
-    const keyboard = admins.map(row => [{ text: '🗑️ Quitar ID ' + row.telegramId, callback_data: 'admins:remove:' + row.telegramId }]);
-    if (actorId === OWNER_ID) keyboard.unshift([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
+    const adminButtons = admins.map(row => ({ text: '🗑️ Quitar ID ' + row.telegramId, callback_data: 'admins:remove:' + row.telegramId }));
+    const keyboard = [];
+    if (actorId === OWNER_ID) keyboard.push([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
+    for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
     keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
     return api.sendMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores registrados.'), reply_markup: { inline_keyboard: keyboard } });
   }
