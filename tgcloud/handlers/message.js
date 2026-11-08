@@ -107,7 +107,9 @@ async function ensureUserTopic(telegramId, username, firstName = '') {
 }
 
 async function relayMessageToUser(message, telegramId) {
-  return api.forwardMessage({
+  // copyMessage crea un mensaje nuevo enviado por el bot, sin cabecera
+  // de reenvío ni atribución al administrador que escribió en el tema.
+  return api.copyMessage({
     chat_id: Number(telegramId),
     from_chat_id: Number(message.chat.id),
     message_id: Number(message.message_id),
