@@ -11,13 +11,14 @@ import {
 } from '../schema.js';
 import { OWNER_ID, VERIFY_GROUP_ID } from '../lib/config.js';
 import { isVerificationAdmin } from '../lib/admins.js';
+import { sendUiMessage, sendUiTemplate } from '../lib/ui.js';
 import { sendTemplate, readTemplate, saveTemplate, parseButtonRows, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 const requestId = (telegramId) => String(telegramId) + '-' + Date.now();
 
 async function reply(chatId, text) {
-  return api.sendMessage({ chat_id: chatId, text });
+  return sendUiMessage({ chat_id: chatId, text });
 }
 
 async function saveEvidence(requestIdValue, type, message, fileId = '', uniqueId = '') {
@@ -67,7 +68,7 @@ export default async function (message) {
   const text = String(message.text || '').trim();
 
   if (text === '/start' || text.startsWith('/start ')) {
-    return sendTemplate(chatId, 'welcome', TEMPLATE_DEFS.welcome.fallback, {
+    return sendUiTemplate(chatId, 'welcome', TEMPLATE_DEFS.welcome.fallback, {
       context: { user: message.from, chat: message.chat, chat_id: chatId, id: telegramId, nombre_modelo: [message.from.first_name, message.from.last_name].filter(Boolean).join(' '), estado: 'BIENVENIDA' },
       appendButtons: [
         [{ text: '✅ Ya estoy verificada', callback_data: 'legacy:request' }],
@@ -97,7 +98,7 @@ export default async function (message) {
       { text: '🔄 Actualizar', callback_data: 'verify:list' },
     ];
     for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
-    return api.sendMessage({
+    return sendUiMessage({
       chat_id: chatId,
       text: '🛡️ PANEL DE VERIFICACIÓN\\n\\nSolicitudes pendientes de revisión: ' + pending.length +
         (pending.length ? '\\nSelecciona un expediente para revisarlo.' : '\\nNo hay solicitudes pendientes.'),
@@ -150,7 +151,7 @@ export default async function (message) {
       added++;
     }
     await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
-    return api.sendMessage({ chat_id: chatId, text: '✅ Se agregaron/autorizaron ' + added + ' ID(s). Esas cuentas podrán elegir «Ya estoy verificada» y pasar al registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🗂️ Ver accesos', callback_data: 'legacy:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
+    return sendUiMessage({ chat_id: chatId, text: '✅ Se agregaron/autorizaron ' + added + ' ID(s). Esas cuentas podrán elegir «Ya estoy verificada» y pasar al registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🗂️ Ver accesos', callback_data: 'legacy:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
   }
 
   if (await isVerificationAdmin(telegramId) && session?.step?.startsWith('template_')) {
@@ -294,7 +295,7 @@ export default async function (message) {
       step: 'videomensaje', updatedAt: timestamp,
     }).where(eq(verificationSessions.telegramId, telegramId)).run();
     await reply(chatId, '✅ Datos iniciales registrados.');
-    return sendTemplate(chatId, 'video', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
+    return sendUiTemplate(chatId, 'video', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
   }
 
   if (session.step === 'videomensaje') {
