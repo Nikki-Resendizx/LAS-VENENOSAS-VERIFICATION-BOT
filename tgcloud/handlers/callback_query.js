@@ -10,6 +10,7 @@ import {
 } from '../schema.js';import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
 import { readTemplate, sendTemplate, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
 import { isVerificationAdmin } from '../lib/admins.js';
+import { sendUiMessage, sendUiTemplate } from '../lib/ui.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -36,7 +37,7 @@ async function showRequest(query, requestId) {
     'Nacionalidad: ' + (row.nationality || 'No indicada') + '\\n' +
     'Estado: ' + row.status + '\\n' +
     'Expediente: ' + row.id;
-  await api.sendMessage({
+  await sendUiMessage({
     chat_id: query.from.id,
     text,
     reply_markup: { inline_keyboard: [[
@@ -63,14 +64,14 @@ async function showTemplates(chatId) {
     text: item.title, callback_data: 'verify:template:open:' + key,
   }]);
   rows.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
-  return api.sendMessage({ chat_id: chatId, text: '✏️ EDITOR DE MENSAJES\\n\\nSelecciona qué mensaje deseas personalizar. Cada plantilla permite editar texto, botones y multimedia, además de probar una vista previa.', reply_markup: { inline_keyboard: rows } });
+  return sendUiMessage({ chat_id: chatId, text: '✏️ EDITOR DE MENSAJES\\n\\nSelecciona qué mensaje deseas personalizar. Cada plantilla permite editar texto, botones y multimedia, además de probar una vista previa.', reply_markup: { inline_keyboard: rows } });
 }
 
 async function showTemplateEditor(chatId, key) {
   const def = TEMPLATE_DEFS[key];
-  if (!def) return api.sendMessage({ chat_id: chatId, text: 'Plantilla no reconocida.' });
+  if (!def) return sendUiMessage({ chat_id: chatId, text: 'Plantilla no reconocida.' });
   const cfg = await readTemplate(key);
-  return api.sendMessage({
+  return sendUiMessage({
     chat_id: chatId,
     text: def.title + '\\n\\nTexto: ' + (cfg.text || def.fallback).slice(0, 700) +
       '\\nBotones: ' + (cfg.buttons?.length ? cfg.buttons.reduce((n, row) => n + row.length, 0) : 0) +
@@ -117,7 +118,7 @@ async function handleDecision(query, action, requestId) {
       }).run();
     }
     await answer(query, 'Escribe en privado el motivo de la corrección.');
-    await api.sendMessage({
+    await sendUiMessage({
       chat_id: adminId,
       text: '📝 Escribe ahora el motivo o los elementos que debe corregir la persona solicitante.\\n\\nExpediente: ' + requestId,
     });
@@ -146,9 +147,9 @@ async function handleDecision(query, action, requestId) {
       const cfg = await readTemplate('approval');
       const rows = Array.isArray(cfg.buttons) ? cfg.buttons.map(r => r.map(b => ({ text: String(b.text), url: String(b.url), style: ['primary', 'success', 'danger'].includes(b.style) ? b.style : 'primary' }))) : [];
       rows.push([{ text: '🌐 Abrir WebApp de Registro', web_app: { url: 'https://registro-verifiedmodels.vercel.app' }, style: 'primary' }]);
-      await sendTemplate(row.telegramId, 'approval', TEMPLATE_DEFS.approval.fallback, { context: { user: { id: row.telegramId, username: row.username, first_name: row.firstName }, id: row.telegramId, nombre_modelo: [row.firstName, row.lastName].filter(Boolean).join(' '), estado: status, admin: query.from.username ? '@' + query.from.username : String(query.from.id) }, reply_markup: { inline_keyboard: rows } });
+      await sendUiTemplate(row.telegramId, 'approval', TEMPLATE_DEFS.approval.fallback, { context: { user: { id: row.telegramId, username: row.username, first_name: row.firstName }, id: row.telegramId, nombre_modelo: [row.firstName, row.lastName].filter(Boolean).join(' '), estado: status, admin: query.from.username ? '@' + query.from.username : String(query.from.id) }, reply_markup: { inline_keyboard: rows } });
     } else {
-      await sendTemplate(row.telegramId, 'rejection', TEMPLATE_DEFS.rejection.fallback, { context: { user: { id: row.telegramId, username: row.username, first_name: row.firstName }, id: row.telegramId, nombre_modelo: [row.firstName, row.lastName].filter(Boolean).join(' '), estado: status, admin: query.from.username ? '@' + query.from.username : String(query.from.id) } });
+      await sendUiTemplate(row.telegramId, 'rejection', TEMPLATE_DEFS.rejection.fallback, { context: { user: { id: row.telegramId, username: row.username, first_name: row.firstName }, id: row.telegramId, nombre_modelo: [row.firstName, row.lastName].filter(Boolean).join(' '), estado: status, admin: query.from.username ? '@' + query.from.username : String(query.from.id) } });
     }
   } catch (error) {
     console.log('No se pudo notificar la resolución al solicitante:', String(error));
@@ -189,7 +190,7 @@ async function legacyRequest(query) {
   const current = await db.select().from(legacyGalleryAccess)
     .where(eq(legacyGalleryAccess.telegramId, id)).get();
   if (current?.status === 'AUTHORIZED') {
-    await api.sendMessage({ chat_id: id, text: '✅ Tu acceso para registrarte en la Galería ya está autorizado. Puedes continuar sin repetir la verificación.', reply_markup: { inline_keyboard: [[{ text: '🌐 Abrir WebApp de Registro', web_app: { url: REGISTRATION_WEBAPP_URL } }]] } });
+    await sendUiMessage({ chat_id: id, text: '✅ Tu acceso para registrarte en la Galería ya está autorizado. Puedes continuar sin repetir la verificación.', reply_markup: { inline_keyboard: [[{ text: '🌐 Abrir WebApp de Registro', web_app: { url: REGISTRATION_WEBAPP_URL } }]] } });
     return answer(query, 'Acceso autorizado.');
   }
   if (current?.status === 'PENDING') return answer(query, 'Tu solicitud ya está pendiente de autorización.', true);
@@ -210,7 +211,7 @@ async function legacyRequest(query) {
       { text: '❌ Rechazar', callback_data: 'legacy:reject:' + id },
     ]] },
   });
-  await api.sendMessage({ chat_id: OWNER_ID, text: '🗂️ Nueva solicitud de acceso registrada en el tema de la modelo: ' + id });
+  await sendUiMessage({ chat_id: OWNER_ID, text: '🗂️ Nueva solicitud de acceso registrada en el tema de la modelo: ' + id });
   return answer(query, 'Solicitud enviada al grupo de revisión. Espera la autorización del equipo.');
 }
 
@@ -219,14 +220,14 @@ async function legacyList(query) {
   const keyboard = rows.slice(0, 30).map(row => [{ text: (row.username ? '@' + row.username : String(row.telegramId)), callback_data: 'legacy:open:' + row.telegramId }]);
   keyboard.push([{ text: '➕ Agregar IDs aprobados', callback_data: 'legacy:add' }]);
   keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
-  await api.sendMessage({ chat_id: Number(query.from.id), text: '🗂️ ACCESOS A GALERÍA PENDIENTES\\n\\nSolicitudes: ' + rows.length, reply_markup: { inline_keyboard: keyboard } });
+  await sendUiMessage({ chat_id: Number(query.from.id), text: '🗂️ ACCESOS A GALERÍA PENDIENTES\\n\\nSolicitudes: ' + rows.length, reply_markup: { inline_keyboard: keyboard } });
   return answer(query, 'Lista actualizada.');
 }
 
 async function legacyOpen(query, id) {
   const row = await db.select().from(legacyGalleryAccess).where(eq(legacyGalleryAccess.telegramId, Number(id))).get();
   if (!row) return answer(query, 'No encontré esa solicitud.', true);
-  await api.sendMessage({ chat_id: Number(query.from.id), text: '🗂️ SOLICITUD DE ACCESO\\n\\nUsuario: ' + (row.username ? '@' + row.username : 'Sin username') + '\\nNombre: ' + (row.firstName || 'No indicado') + '\\nID Telegram: ' + row.telegramId + '\\nEstado: ' + row.status + '\\nOrigen: ' + row.source, reply_markup: { inline_keyboard: row.status === 'PENDING' ? [[{ text: '✅ Autorizar', callback_data: 'legacy:approve:' + row.telegramId }, { text: '❌ Rechazar', callback_data: 'legacy:reject:' + row.telegramId }]] : [] } });
+  await sendUiMessage({ chat_id: Number(query.from.id), text: '🗂️ SOLICITUD DE ACCESO\\n\\nUsuario: ' + (row.username ? '@' + row.username : 'Sin username') + '\\nNombre: ' + (row.firstName || 'No indicado') + '\\nID Telegram: ' + row.telegramId + '\\nEstado: ' + row.status + '\\nOrigen: ' + row.source, reply_markup: { inline_keyboard: row.status === 'PENDING' ? [[{ text: '✅ Autorizar', callback_data: 'legacy:approve:' + row.telegramId }, { text: '❌ Rechazar', callback_data: 'legacy:reject:' + row.telegramId }]] : [] } });
   return answer(query, 'Solicitud abierta.');
 }
 
@@ -238,9 +239,9 @@ async function legacyDecision(query, action, id) {
   const timestamp = now();
   await db.update(legacyGalleryAccess).set({ status, reviewedBy: Number(query.from.id), reviewedAt: timestamp }).where(eq(legacyGalleryAccess.telegramId, telegramId)).run();
   if (action === 'approve') {
-    await api.sendMessage({ chat_id: telegramId, text: '🎉 Tu acceso como modelo previamente verificada fue autorizado. Ya puedes continuar directamente con el registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🌐 Abrir WebApp de Registro', web_app: { url: REGISTRATION_WEBAPP_URL } }]] } });
+    await sendUiMessage({ chat_id: telegramId, text: '🎉 Tu acceso como modelo previamente verificada fue autorizado. Ya puedes continuar directamente con el registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🌐 Abrir WebApp de Registro', web_app: { url: REGISTRATION_WEBAPP_URL } }]] } });
   } else {
-    await api.sendMessage({ chat_id: telegramId, text: 'Tu solicitud de acceso directo no fue autorizada. Si deseas participar, puedes iniciar el proceso normal de verificación con /solicitar.' });
+    await sendUiMessage({ chat_id: telegramId, text: 'Tu solicitud de acceso directo no fue autorizada. Si deseas participar, puedes iniciar el proceso normal de verificación con /solicitar.' });
   }
   await answer(query, action === 'approve' ? 'Acceso autorizado.' : 'Solicitud rechazada.');
   if (query.message?.chat?.id && query.message?.message_id) {
@@ -262,13 +263,13 @@ export default async function (query) {
     for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
     keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
     await answer(query, 'Administradores: ' + admins.length);
-    return api.sendMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores de apoyo registrados.') + (actorId === OWNER_ID ? '\\n\\nSolo el Owner puede agregar nuevos administradores.' : ''), reply_markup: { inline_keyboard: keyboard } });
+    return sendUiMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores de apoyo registrados.') + (actorId === OWNER_ID ? '\\n\\nSolo el Owner puede agregar nuevos administradores.' : ''), reply_markup: { inline_keyboard: keyboard } });
   }
   if (data === 'admins:add') {
     if (actorId !== OWNER_ID) return answer(query, '⛔ Solo el Owner puede agregar administradores.', true);
     await setAdminTemplateSession(actorId, '', 'admin_add_ids');
     await answer(query, 'Envía los IDs que deseas agregar.');
-    return api.sendMessage({ chat_id: actorId, text: '➕ Envía uno o varios IDs de Telegram separados por espacios, comas o saltos de línea. Solo el Owner puede agregar administradores.' });
+    return sendUiMessage({ chat_id: actorId, text: '➕ Envía uno o varios IDs de Telegram separados por espacios, comas o saltos de línea. Solo el Owner puede agregar administradores.' });
   }
   const removeAdmin = data.match(/^admins:remove:(\d+)$/);
   if (removeAdmin) {
@@ -283,11 +284,11 @@ export default async function (query) {
     if (actorId === OWNER_ID) keyboard.push([{ text: '➕ Agregar administrador', callback_data: 'admins:add' }]);
     for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
     keyboard.push([{ text: '↩️ Volver al panel', callback_data: 'verify:list' }]);
-    return api.sendMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores registrados.'), reply_markup: { inline_keyboard: keyboard } });
+    return sendUiMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores registrados.'), reply_markup: { inline_keyboard: keyboard } });
   }
   if (data === 'legacy:new') {
     await answer(query, 'Puedes comenzar tu verificación nueva con /solicitar.');
-    return api.sendMessage({ chat_id: actorId, text: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' });
+    return sendUiMessage({ chat_id: actorId, text: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' });
   }
   if (data.startsWith('legacy:')) {
     if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ No tienes autorización para administrar estos accesos.', true);
@@ -295,7 +296,7 @@ export default async function (query) {
     if (data === 'legacy:add') {
       await setAdminTemplateSession(actorId, '', 'legacy_add_ids');
       await answer(query, 'Modo de carga de IDs activado.');
-      return api.sendMessage({ chat_id: actorId, text: 'Envía uno o varios IDs numéricos separados por espacios, comas o saltos de línea.' });
+      return sendUiMessage({ chat_id: actorId, text: 'Envía uno o varios IDs numéricos separados por espacios, comas o saltos de línea.' });
     }
     const opened = data.match(/^legacy:open:(\\d+)$/);
     if (opened) return legacyOpen(query, opened[1]);
@@ -324,7 +325,7 @@ export default async function (query) {
       if (!TEMPLATE_DEFS[key]) return answer(query, 'Plantilla no reconocida.', true);
       if (action === 'preview') {
         await answer(query, 'Enviando vista previa…');
-        return sendTemplate(actorId, key, TEMPLATE_DEFS[key].fallback, { context: { user: query.from, id: query.from.id, nombre_modelo: [query.from.first_name, query.from.last_name].filter(Boolean).join(' '), estado: 'VISTA PREVIA', admin: query.from.username ? '@' + query.from.username : String(query.from.id) } });
+        return sendUiTemplate(actorId, key, TEMPLATE_DEFS[key].fallback, { context: { user: query.from, id: query.from.id, nombre_modelo: [query.from.first_name, query.from.last_name].filter(Boolean).join(' '), estado: 'VISTA PREVIA', admin: query.from.username ? '@' + query.from.username : String(query.from.id) } });
       }
       const steps = { edittext: 'template_text', editbuttons: 'template_buttons', editmedia: 'template_media' };
       await setAdminTemplateSession(actorId, key, steps[action]);
@@ -334,11 +335,11 @@ export default async function (query) {
         editmedia: '🖼️ Envía una foto, video, GIF, audio o documento para esta plantilla. Escribe quitar para eliminar el multimedia actual.',
       };
       await answer(query, 'Modo de edición activado.');
-      return api.sendMessage({ chat_id: actorId, text: prompts[action] });
+      return sendUiMessage({ chat_id: actorId, text: prompts[action] });
     }
     if (data === 'verify:list') {
       await answer(query, 'Actualizando lista…');
-      await api.sendMessage({
+      await sendUiMessage({
         chat_id: actorId,
         text: 'Para actualizar las solicitudes pendientes, vuelve a enviar /admin.',
       });
