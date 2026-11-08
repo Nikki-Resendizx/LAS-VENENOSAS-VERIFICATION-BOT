@@ -82,16 +82,21 @@ export default async function (message) {
       .filter(row => row.status === 'EN_REVISION')
       .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
       .slice(0, 15);
-    const keyboard = pending.map(row => [{
+    const pendingButtons = pending.map(row => ({
       text: '📂 ' + (row.username ? '@' + row.username : String(row.telegramId)),
       callback_data: 'verify:open:' + row.id,
-    }]);
+    }));
+    const keyboard = [];
+    for (let i = 0; i < pendingButtons.length; i += 3) keyboard.push(pendingButtons.slice(i, i + 3));
     const legacyPending = (await db.select().from(legacyGalleryAccess).all()).filter(row => row.status === 'PENDING');
-    keyboard.push([{ text: '🗂️ Accesos a Galería (' + legacyPending.length + ')', callback_data: 'legacy:list' }]);
-    keyboard.push([{ text: '➕ Agregar IDs aprobados', callback_data: 'legacy:add' }]);
-    keyboard.push([{ text: '✏️ Editar mensajes', callback_data: 'verify:templates' }]);
-    keyboard.push([{ text: '👥 Administradores de apoyo', callback_data: 'admins:list' }]);
-    keyboard.push([{ text: '🔄 Actualizar', callback_data: 'verify:list' }]);
+    const adminButtons = [
+      { text: '🗂️ Accesos a Galería (' + legacyPending.length + ')', callback_data: 'legacy:list' },
+      { text: '➕ Agregar IDs aprobados', callback_data: 'legacy:add' },
+      { text: '✏️ Editar mensajes', callback_data: 'verify:templates' },
+      { text: '👥 Administradores de apoyo', callback_data: 'admins:list' },
+      { text: '🔄 Actualizar', callback_data: 'verify:list' },
+    ];
+    for (let i = 0; i < adminButtons.length; i += 3) keyboard.push(adminButtons.slice(i, i + 3));
     return api.sendMessage({
       chat_id: chatId,
       text: '🛡️ PANEL DE VERIFICACIÓN\\n\\nSolicitudes pendientes de revisión: ' + pending.length +
