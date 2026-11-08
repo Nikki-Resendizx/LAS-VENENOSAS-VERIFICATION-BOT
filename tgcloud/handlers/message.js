@@ -169,7 +169,7 @@ export default async function (message) {
         cfg.buttons = text.toLowerCase() === 'quitar' ? [] : parseButtonRows(text);
         await saveTemplate(key, cfg);
         await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
-        return api.sendMessage({ chat_id: chatId, text: '✅ Botones guardados. Usa 👁️ Vista previa para comprobarlos.', reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:template:open:' + key }]] } });
+        return sendUiMessage({ chat_id: chatId, text: '✅ Botones guardados. Usa 👁️ Vista previa para comprobarlos.', reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:template:open:' + key }]] } });
       } catch (error) { return reply(chatId, String(error.message || error)); }
     }
     if (session.step === 'template_media') {
@@ -184,7 +184,7 @@ export default async function (message) {
       cfg.media = media;
       await saveTemplate(key, cfg);
       await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
-      return api.sendMessage({ chat_id: chatId, text: media ? '✅ Multimedia guardado.' : '✅ Multimedia eliminado.', reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:template:open:' + key }]] } });
+      return sendUiMessage({ chat_id: chatId, text: media ? '✅ Multimedia guardado.' : '✅ Multimedia eliminado.', reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:template:open:' + key }]] } });
     }
   }
 
@@ -212,7 +212,7 @@ export default async function (message) {
       createdAt: timestamp,
     }).run();
     try {
-      await api.sendMessage({
+      await sendUiMessage({
         chat_id: request.telegramId,
         text: '📝 Tu expediente de LAS VENENOSAS requiere una corrección.\\n\\nIndicación del equipo: ' + text +
           '\\n\\nPor favor, conserva este mensaje y espera las instrucciones del equipo para reenviar el elemento solicitado.',
@@ -233,7 +233,7 @@ export default async function (message) {
       if (!exists) { await db.insert(verificationAdmins).values({ telegramId: id, addedBy: OWNER_ID, createdAt: now() }).run(); added++; }
     }
     await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
-    return api.sendMessage({ chat_id: chatId, text: '✅ Administradores agregados: ' + added + '. Los administradores de apoyo ya pueden usar el panel con permisos operativos completos.', reply_markup: { inline_keyboard: [[{ text: '👥 Ver administradores', callback_data: 'admins:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
+    return sendUiMessage({ chat_id: chatId, text: '✅ Administradores agregados: ' + added + '. Los administradores de apoyo ya pueden usar el panel con permisos operativos completos.', reply_markup: { inline_keyboard: [[{ text: '👥 Ver administradores', callback_data: 'admins:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
   }
 
   if (!session) return;
@@ -323,7 +323,7 @@ export default async function (message) {
     await db.update(verificationSessions).set({ step: 'referencias', updatedAt: now() })
       .where(eq(verificationSessions.telegramId, telegramId)).run();
     await reply(chatId, '📸 Foto recibida y guardada en tu expediente privado.');
-    return sendTemplate(chatId, 'references', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
+    return sendUiTemplate(chatId, 'references', undefined, { context: { user: message.from, chat: message.chat, chat_id: chatId, estado: 'PENDIENTE_EVIDENCIAS' } });
   }
 
   if (session.step === 'referencias') {
