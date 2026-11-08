@@ -52,20 +52,123 @@ async function getOrCreateModelTopic(telegramId, username, mappingKey) {
   return topicId;
 }
 
-async function forwardEvidence(message, topicId) {
+async function ensureUserTopic(telegramId, username, firstName = '') {
+  const mappingKey = 'legacy-' + Number(telegramId);
+  const mappings = await db.select().from(verificationTopics).all();
+  const current = mappings.find(row => row.requestId === mappingKey);
+  if (current) return Number(current.topicId);
+
+  const requests = await db.select().from(verificationRequests).all();
+  const requestIds = new Set(requests
+    .filter(row => Number(row.telegramId) === Number(telegramId))
+    .map(row => row.id));
+  const reusable = mappings
+    .filter(row => requestIds.has(row.requestId))
+    .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))[0];
+
+  let topicId = reusable ? Number(reusable.topicId) : 0;
+  let created = false;
+  if (!topicId) {
+    const topic = await api.createForumTopic({
+      chat_id: VERIFY_GROUP_ID,
+      name: ('Modelo ' + String(username || firstName || telegramId)).slice(0, 128),
+    });
+    topicId = Number(topic?.message_thread_id);
+    if (!Number.isInteger(topicId) || topicId <= 0) {
+      throw new Error('Telegram no devolvió un identificador de tema válido.');
+    }
+    created = true;
+  }
+
+  await db.insert(verificationTopics).values({
+    requestId: mappingKey,
+    groupId: VERIFY_GROUP_ID,
+    topicId,
+    createdAt: now(),
+  }).run();
+
+  if (created) {
+    const label = [firstName, username ? '@' + username : '', 'ID: ' + telegramId]
+      .filter(Boolean).join('\n');
+    try {
+      await api.sendMessage({
+        chat_id: VERIFY_GROUP_ID,
+        message_thread_id: topicId,
+        text: '👤 PERFIL DE CONTACTO\n\n' + label +
+          '\n\nEste tema es el canal permanente de comunicación con esta persona. ' +
+          'Los mensajes que envíen los administradores aquí llegarán a su chat privado.',
+      });
+    } catch (error) {
+      console.log('No se pudo publicar la ficha inicial del tema:', String(error));
+    }
+  }
+  return topicId;
+}
+
+async function relayMessageToUser(message, telegramId) {
   return api.forwardMessage({
-    chat_id: VERIFY_GROUP_ID,
-    from_chat_id: message.chat.id,
-    message_id: message.message_id,
-    message_thread_id: topicId,
+    chat_id: Number(telegramId),
+    from_chat_id: Number(message.chat.id),
+    message_id: Number(message.message_id),
   });
 }
 
 export default async function (message) {
-  if (!message?.chat || !message?.from || message.chat.type !== 'private') return;
+  if (!message?.chat || !message?.from) return;
+
+  // Los mensajes escritos por administradores dentro de un tema se entregan
+  // al chat privado de la persona asociada a ese tema.
+  if (Number(message.chat.id) === Number(VERIFY_GROUP_ID) && message.message_thread_id) {
+    if (!(await isVerificationAdmin(message.from.id))) return;
+    const mappings = await db.select().from(verificationTopics).all();
+    const mapping = mappings.find(row =>
+      Number(row.groupId) === Number(VERIFY_GROUP_ID) &&
+      Number(row.topicId) === Number(message.message_thread_id));
+    if (!mapping) return;
+
+    let recipientId = 0;
+    const legacyMatch = String(mapping.requestId).match(/^legacy-(\d+)$/);
+    if (legacyMatch) recipientId = Number(legacyMatch[1]);
+    else {
+      const request = await db.select().from(verificationRequests)
+        .where(eq(verificationRequests.id, mapping.requestId)).get();
+      recipientId = Number(request?.telegramId || 0);
+    }
+    if (!Number.isSafeInteger(recipientId) || recipientId <= 0) return;
+    try {
+      await relayMessageToUser(message, recipientId);
+    } catch (error) {
+      console.log('No se pudo entregar el mensaje del tema al usuario:', String(error));
+    }
+    return;
+  }
+
+  if (message.chat.type !== 'private') return;
   const chatId = Number(message.chat.id);
   const telegramId = Number(message.from.id);
   const text = String(message.text || '').trim();
+
+  // Cada persona obtiene su tema desde el primer /start. Después, todos sus
+  // mensajes privados se reflejan allí, independientemente de la etapa.
+  if (!(await isVerificationAdmin(telegramId))) {
+    try {
+      const topicId = await ensureUserTopic(
+        telegramId,
+        message.from.username,
+        [message.from.first_name, message.from.last_name].filter(Boolean).join(' '),
+      );
+      if (!(text === '/start' || text.startsWith('/start '))) {
+        await api.forwardMessage({
+          chat_id: VERIFY_GROUP_ID,
+          from_chat_id: chatId,
+          message_id: Number(message.message_id),
+          message_thread_id: topicId,
+        });
+      }
+    } catch (error) {
+      console.log('No se pudo sincronizar el mensaje con el tema del usuario:', String(error));
+    }
+  }
 
   if (text === '/start' || text.startsWith('/start ')) {
     const welcomeActions = await readTemplate('welcome_actions');
@@ -321,7 +424,7 @@ export default async function (message) {
     const v = message.video_note;
     await saveEvidence(session.requestId, 'VIDEOMENSAJE', message, String(v.file_id || ''), String(v.file_unique_id || ''));
     const topic = await db.select().from(verificationTopics).where(eq(verificationTopics.requestId, session.requestId)).get();
-    await forwardEvidence(message, Number(topic.topicId));
+
     await db.update(verificationSessions).set({ step: 'foto_zing', updatedAt: now() })
       .where(eq(verificationSessions.telegramId, telegramId)).run();
     await reply(chatId, '🎥 Videomensaje recibido y enviado a tu expediente privado.');
@@ -335,7 +438,7 @@ export default async function (message) {
     const photo = message.photo[message.photo.length - 1];
     await saveEvidence(session.requestId, 'FOTO_ZING', message, String(photo.file_id || ''), String(photo.file_unique_id || ''));
     const topic = await db.select().from(verificationTopics).where(eq(verificationTopics.requestId, session.requestId)).get();
-    await forwardEvidence(message, Number(topic.topicId));
+
     await db.update(verificationSessions).set({ step: 'referencias', updatedAt: now() })
       .where(eq(verificationSessions.telegramId, telegramId)).run();
     await reply(chatId, '📸 Foto recibida y guardada en tu expediente privado.');
@@ -389,7 +492,7 @@ export default async function (message) {
     } else {
       await saveEvidence(session.requestId, 'REFERENCIAS_TEXTO', message);
     }
-    await forwardEvidence(message, Number(topic.topicId));
+
     return reply(chatId, '✅ Referencia recibida y añadida a tu expediente. Puedes enviar más textos, enlaces o fotos. Cuando termines, escribe /finalizar.');
   }
 }
