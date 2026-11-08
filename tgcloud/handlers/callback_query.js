@@ -8,7 +8,7 @@ import {
   verificationTopics,
   verificationAdmins,
 } from '../schema.js';import { OWNER_ID, REGISTRATION_WEBAPP_URL, VERIFY_GROUP_ID } from '../lib/config.js';
-import { readTemplate, sendTemplate, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
+import { readTemplate, saveTemplate, sendTemplate, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
 import { isVerificationAdmin } from '../lib/admins.js';
 import { sendUiMessage, sendUiTemplate } from '../lib/ui.js';
 
@@ -81,6 +81,11 @@ async function showTemplateEditor(chatId, key) {
       [{ text: '📝 Modificar texto', callback_data: 'verify:template:edittext:' + key }],
       [{ text: '🔘 Modificar botones', callback_data: 'verify:template:editbuttons:' + key }],
       [{ text: '🖼️ Modificar multimedia', callback_data: 'verify:template:editmedia:' + key }],
+      [
+        { text: '↩️ Texto predeterminado', callback_data: 'verify:template:resettext:' + key },
+        { text: '↩️ Botones predeterminados', callback_data: 'verify:template:resetbuttons:' + key },
+      ],
+      [{ text: '↩️ Multimedia predeterminado', callback_data: 'verify:template:resetmedia:' + key }],
       [{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }],
       [{ text: '↩️ Volver', callback_data: 'verify:templates' }],
     ] },
@@ -318,6 +323,19 @@ export default async function (query) {
     if (templateOpen) {
       await answer(query, 'Plantilla abierta');
       return showTemplateEditor(actorId, templateOpen[1]);
+    }
+    const templateReset = data.match(/^verify:template:reset(text|buttons|media):([a-z_]+)$/);
+    if (templateReset) {
+      const [, part, key] = templateReset;
+      const def = TEMPLATE_DEFS[key];
+      if (!def) return answer(query, 'Plantilla no reconocida.', true);
+      const cfg = await readTemplate(key);
+      if (part === 'text') cfg.text = def.fallback;
+      if (part === 'buttons') cfg.buttons = [];
+      if (part === 'media') cfg.media = null;
+      await saveTemplate(key, cfg);
+      await answer(query, part === 'text' ? 'Texto restaurado.' : part === 'buttons' ? 'Botones restaurados.' : 'Multimedia restaurado.');
+      return showTemplateEditor(actorId, key);
     }
     const templateAction = data.match(/^verify:template:(edittext|editbuttons|editmedia|preview):([a-z_]+)$/);
     if (templateAction) {
