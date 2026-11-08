@@ -7,8 +7,10 @@ import {
   verificationSessions,
   verificationTopics,
   legacyGalleryAccess,
+  verificationAdmins,
 } from '../schema.js';
 import { OWNER_ID, VERIFY_GROUP_ID } from '../lib/config.js';
+import { isVerificationAdmin } from '../lib/admins.js';
 import { sendTemplate, readTemplate, saveTemplate, parseButtonRows, TEMPLATE_DEFS, TEMPLATE_VARIABLE_HELP } from '../lib/templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -75,7 +77,7 @@ export default async function (message) {
   }
 
   if (text === '/admin' || text.startsWith('/admin ')) {
-    if (telegramId !== OWNER_ID) return reply(chatId, '⛔ No tienes autorización para abrir el panel de revisión.');
+    if (!(await isVerificationAdmin(telegramId))) return reply(chatId, '⛔ No tienes autorización para abrir el panel de revisión.');
     const pending = (await db.select().from(verificationRequests).all())
       .filter(row => row.status === 'EN_REVISION')
       .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
@@ -88,6 +90,7 @@ export default async function (message) {
     keyboard.push([{ text: '🗂️ Accesos a Galería (' + legacyPending.length + ')', callback_data: 'legacy:list' }]);
     keyboard.push([{ text: '➕ Agregar IDs aprobados', callback_data: 'legacy:add' }]);
     keyboard.push([{ text: '✏️ Editar mensajes', callback_data: 'verify:templates' }]);
+    keyboard.push([{ text: '👥 Administradores de apoyo', callback_data: 'admins:list' }]);
     keyboard.push([{ text: '🔄 Actualizar', callback_data: 'verify:list' }]);
     return api.sendMessage({
       chat_id: chatId,
@@ -130,7 +133,7 @@ export default async function (message) {
   const session = await db.select().from(verificationSessions)
     .where(eq(verificationSessions.telegramId, telegramId)).get();
 
-  if (telegramId === OWNER_ID && session?.step === 'legacy_add_ids') {
+  if (await isVerificationAdmin(telegramId) && session?.step === 'legacy_add_ids') {
     const ids = [...new Set(text.split(/[\s,;]+/).map(value => Number(value.trim())).filter(value => Number.isSafeInteger(value) && value > 0))];
     if (!ids.length) return reply(chatId, 'No detecté IDs válidos. Envía uno o varios IDs numéricos separados por espacios, comas o saltos de línea.');
     let added = 0;
@@ -145,7 +148,7 @@ export default async function (message) {
     return api.sendMessage({ chat_id: chatId, text: '✅ Se agregaron/autorizaron ' + added + ' ID(s). Esas cuentas podrán elegir «Ya estoy verificada» y pasar al registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🗂️ Ver accesos', callback_data: 'legacy:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
   }
 
-  if (telegramId === OWNER_ID && session?.step?.startsWith('template_')) {
+  if (await isVerificationAdmin(telegramId) && session?.step?.startsWith('template_')) {
     const key = session.requestId;
     const cfg = await readTemplate(key);
     if (session.step === 'template_text') {
@@ -179,7 +182,7 @@ export default async function (message) {
     }
   }
 
-  if (telegramId === OWNER_ID && session?.step === 'admin_correction') {
+  if (await isVerificationAdmin(telegramId) && session?.step === 'admin_correction') {
     if (!text || text.length < 5 || text.length > 1500) {
       return reply(chatId, 'Escribe una indicación de corrección de entre 5 y 1500 caracteres.');
     }
@@ -213,6 +216,18 @@ export default async function (message) {
     }
     await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
     return reply(chatId, '✅ Solicitud de corrección enviada a la persona solicitante y registrada en auditoría.');
+  }
+
+  if (telegramId === OWNER_ID && session?.step === 'admin_add_ids') {
+    const ids = [...new Set(text.split(/[\s,;]+/).map(value => Number(value.trim())).filter(value => Number.isSafeInteger(value) && value > 0 && value !== OWNER_ID))];
+    if (!ids.length) return reply(chatId, 'Envía uno o varios IDs numéricos válidos, distintos del Owner.');
+    let added = 0;
+    for (const id of ids) {
+      const exists = await db.select().from(verificationAdmins).where(eq(verificationAdmins.telegramId, id)).get();
+      if (!exists) { await db.insert(verificationAdmins).values({ telegramId: id, addedBy: OWNER_ID, createdAt: now() }).run(); added++; }
+    }
+    await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+    return api.sendMessage({ chat_id: chatId, text: '✅ Administradores agregados: ' + added + '. Los administradores de apoyo ya pueden usar el panel con permisos operativos completos.', reply_markup: { inline_keyboard: [[{ text: '👥 Ver administradores', callback_data: 'admins:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
   }
 
   if (!session) return;
