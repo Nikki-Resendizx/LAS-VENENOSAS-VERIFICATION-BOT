@@ -186,14 +186,26 @@ export default async function (message) {
       );
       // Reflejar absolutamente todos los mensajes privados de la persona,
       // incluido /start, dentro de su tema permanente.
-      await api.forwardMessage({
-        chat_id: VERIFY_GROUP_ID,
-        from_chat_id: chatId,
-        message_id: Number(message.message_id),
-        message_thread_id: topicId,
-      });
+      try {
+        await api.forwardMessage({
+          chat_id: VERIFY_GROUP_ID,
+          from_chat_id: chatId,
+          message_id: Number(message.message_id),
+          message_thread_id: topicId,
+        });
+      } catch (forwardError) {
+        // Si el método de reenvío no está disponible o Telegram lo rechaza,
+        // entregar una copia nativa del mensaje dentro del mismo tema.
+        console.log('Falló forwardMessage; se intentará copyMessage:', String(forwardError));
+        await api.copyMessage({
+          chat_id: VERIFY_GROUP_ID,
+          from_chat_id: chatId,
+          message_id: Number(message.message_id),
+          message_thread_id: topicId,
+        });
+      }
     } catch (error) {
-      console.log('No se pudo sincronizar el mensaje con el tema del usuario:', String(error));
+      console.log('ERROR: no se pudo entregar el mensaje privado al tema:', String(error));
     }
   }
 
