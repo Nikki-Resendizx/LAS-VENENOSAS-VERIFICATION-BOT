@@ -317,7 +317,7 @@ export default async function (message) {
     const key = session.requestId;
     const cfg = await readTemplate(key);
     if (session.step === 'template_text') {
-      if (!text || text.length > 3500) return reply(chatId, 'Envía el texto de la plantilla (máximo 3500 caracteres).');
+      if (!text || text.length > 4096) return reply(chatId, 'Envía el texto de la plantilla (máximo 4096 caracteres, límite de Telegram).');
       cfg.text = text;
       await saveTemplate(key, cfg);
       await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
