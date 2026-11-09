@@ -69,13 +69,29 @@ async function showTemplates(chatId) {
   return sendUiMessage({ chat_id: chatId, text: '✏️ EDITOR DE MENSAJES\\n\\nSelecciona qué mensaje deseas personalizar. Cada plantilla permite editar texto, botones y multimedia, además de probar una vista previa.', reply_markup: { inline_keyboard: rows } });
 }
 
+function templatePreviewText(value) {
+  return String(value ?? '')
+    // El panel solo muestra un resumen; no debe interpretar el HTML guardado.
+    .replace(/<br\\s*\\/?\\s*>/gi, ' ')
+    .replace(/<\\/(?:p|div|li|h[1-6])\\s*>/gi, ' ')
+    .replace(/<[^>]*>?/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
+
 async function showTemplateEditor(chatId, key) {
   const def = TEMPLATE_DEFS[key];
   if (!def) return sendUiMessage({ chat_id: chatId, text: 'Plantilla no reconocida.' });
   const cfg = await readTemplate(key);
   return sendUiMessage({
     chat_id: chatId,
-    text: def.title + '\\n\\nTexto: ' + (cfg.text || def.fallback).slice(0, 700) +
+    text: def.title + '\\n\\nTexto: ' + templatePreviewText(cfg.text || def.fallback).slice(0, 700) +
       '\\nBotones: ' + (cfg.buttons?.length ? cfg.buttons.reduce((n, row) => n + row.length, 0) : 0) +
       '\\nMultimedia: ' + (cfg.media?.type || 'ninguno') +
       '\\n\\nElige qué deseas modificar o prueba cómo se verá.',
