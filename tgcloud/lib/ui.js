@@ -1,7 +1,7 @@
 import { api, db } from 'sdk';
 import { eq } from 'sdk/db';
 import { verificationUiMessages } from '../schema.js';
-import { sendTemplate } from './templates.js';
+import { sendTemplate, detectTelegramParseMode } from './templates.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -41,7 +41,16 @@ export async function sendUiMessage(params) {
   const chatId = Number(params.chat_id);
   await removePrevious(chatId);
   const payload = { ...params };
-  if (typeof payload.text === 'string') payload.text = normalizeUiText(payload.text);
+  if (typeof payload.text === 'string') {
+    payload.text = normalizeUiText(payload.text);
+    // Detectar automáticamente el formato Telegram para todas las respuestas
+    // de interfaz (HTML, Markdown y MarkdownV2), salvo que el llamador
+    // haya definido parse_mode o entidades explícitamente.
+    if (!payload.parse_mode && !payload.entities?.length) {
+      const detectedMode = detectTelegramParseMode(payload.text);
+      if (detectedMode) payload.parse_mode = detectedMode;
+    }
+  }
   const result = await api.sendMessage(payload);
   return remember(chatId, result);
 }
