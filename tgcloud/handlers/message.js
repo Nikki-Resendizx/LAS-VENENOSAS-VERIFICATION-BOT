@@ -248,6 +248,18 @@ export default async function (message) {
     });
   }
 
+  if (text === '/restablecerplantillas' || text.startsWith('/restablecerplantillas@')) {
+    if (!(await isVerificationAdmin(telegramId))) return reply(chatId, '⛔ Solo los administradores pueden restablecer las plantillas.');
+    return sendUiMessage({
+      chat_id: chatId,
+      text: '⚠️ RESTABLECER TODAS LAS PLANTILLAS\\n\\nSe restaurarán los textos predeterminados y se eliminarán los botones y archivos multimedia personalizados de todas las plantillas. También se restaurarán los dos botones de bienvenida. Esta acción no se puede deshacer.\\n\\n¿Deseas continuar?',
+      reply_markup: { inline_keyboard: [[
+        { text: '♻️ Sí, restablecer todo', callback_data: 'verify:templates:resetall' },
+        { text: '✖️ Cancelar', callback_data: 'verify:templates:cancelreset' },
+      ]] },
+    });
+  }
+
   if (text === '/cancelar') {
     await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
     return reply(chatId, 'Solicitud en curso cancelada. Cuando quieras comenzar de nuevo, usa /solicitar.');
