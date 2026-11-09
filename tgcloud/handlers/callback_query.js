@@ -444,6 +444,21 @@ export default async function (query) {
       const actions = Array.isArray(cfg.actions) && cfg.actions.length === 2 ? cfg.actions : defaults;
       return sendUiMessage({ chat_id: actorId, text: '🎛️ CONFIGURAR BOTONES DE BIENVENIDA\\n\\nActuales:\\n1. ' + actions[0].text + ' [' + actions[0].style + ']\\n2. ' + actions[1].text + ' [' + actions[1].style + ']\\n\\nEnvía exactamente dos líneas, una por botón:\\nTítulo | color | respuesta\\n\\nColores disponibles: azul, verde o rojo. La respuesta es el mensaje que recibirá la persona al pulsar ese botón.\\nEjemplo:\\n💖 Ya estoy verificada | verde | Tu acceso está en proceso.\\n✨ Soy nueva | rojo | Envía /solicitar para comenzar.' });
     }
+    if (data === 'verify:templates:cancelreset') {
+      await answer(query, 'Restablecimiento cancelado.');
+      return showTemplates(actorId);
+    }
+    if (data === 'verify:templates:resetall') {
+      for (const [key, def] of Object.entries(TEMPLATE_DEFS)) {
+        await saveTemplate(key, { text: def.fallback, buttons: [], media: null });
+      }
+      await saveTemplate('welcome_actions', { actions: [
+        { text: '💖 𝐘𝐚 𝐄𝐬𝐭𝐨𝐲 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐝𝐚 💖', style: 'success', response: 'Acceso a Galería' },
+        { text: '✨ 𝐒𝐨𝐲 𝐍𝐮𝐞𝐯𝐚, 𝐐𝐮𝐢𝐞𝐫𝐨 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫𝐦𝐞 ✨', style: 'danger', response: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' },
+      ] });
+      await answer(query, 'Todas las plantillas volvieron a sus valores predeterminados.');
+      return sendUiMessage({ chat_id: actorId, text: '✅ RESTABLECIMIENTO COMPLETADO\\n\\nSe restauraron los textos, botones y multimedia de todas las plantillas, incluidos los botones de bienvenida.', reply_markup: { inline_keyboard: [[{ text: '📝 Abrir plantillas', callback_data: 'verify:templates' }], [{ text: '↩️ Panel', callback_data: 'verify:panel' }]] } });
+    }
     if (data === 'verify:templates') {
       await answer(query, 'Editor de mensajes');
       return showTemplates(actorId);
