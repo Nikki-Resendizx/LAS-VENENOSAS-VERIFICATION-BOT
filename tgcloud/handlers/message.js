@@ -260,9 +260,15 @@ export default async function (message) {
     });
   }
 
-  if (text === '/cancelar') {
-    await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
-    return reply(chatId, 'Solicitud en curso cancelada. Cuando quieras comenzar de nuevo, usa /solicitar.');
+  if (/^\\/cancel(?:ar)?(?:@[a-z0-9_]+)?$/i.test(text)) {
+    const activeSession = await db.select().from(verificationSessions)
+      .where(eq(verificationSessions.telegramId, telegramId)).get();
+    if (!activeSession) {
+      return reply(chatId, 'ℹ️ No tienes ninguna operación en curso que cancelar.');
+    }
+    await db.delete(verificationSessions)
+      .where(eq(verificationSessions.telegramId, telegramId)).run();
+    return reply(chatId, '❌ Operación cancelada. No se guardaron los datos que aún no habías enviado. Puedes iniciar otra operación cuando quieras.');
   }
 
   if (text === '/solicitar' || text.startsWith('/solicitar ')) {
