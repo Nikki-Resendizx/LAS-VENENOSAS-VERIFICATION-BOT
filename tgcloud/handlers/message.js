@@ -248,7 +248,7 @@ export default async function (message) {
     });
   }
 
-  if (/^\/restablecerplantillas(?:@[a-z0-9_]+)?$/i.test(text)) {
+  if (text.split('@')[0].toLowerCase() === '/restablecerplantillas') {
     if (!(await isVerificationAdmin(telegramId))) return reply(chatId, '⛔ Solo los administradores pueden restablecer las plantillas.');
     return sendUiMessage({
       chat_id: chatId,
@@ -260,7 +260,7 @@ export default async function (message) {
     });
   }
 
-  if (/^\\/cancel(?:ar)?(?:@[a-z0-9_]+)?$/i.test(text)) {
+  if (['/cancel', '/cancelar'].includes(text.split('@')[0].toLowerCase())) {
     const activeSession = await db.select().from(verificationSessions)
       .where(eq(verificationSessions.telegramId, telegramId)).get();
     if (!activeSession) {
