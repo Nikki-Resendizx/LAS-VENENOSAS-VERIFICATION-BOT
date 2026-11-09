@@ -248,7 +248,7 @@ export default async function (message) {
     });
   }
 
-  if (text === '/restablecerplantillas' || text.startsWith('/restablecerplantillas@')) {
+  if (/^\/restablecerplantillas(?:@[a-z0-9_]+)?$/i.test(text)) {
     if (!(await isVerificationAdmin(telegramId))) return reply(chatId, '⛔ Solo los administradores pueden restablecer las plantillas.');
     return sendUiMessage({
       chat_id: chatId,
