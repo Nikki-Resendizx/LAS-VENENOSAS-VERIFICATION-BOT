@@ -211,15 +211,22 @@ async function getOrCreateLegacyTopic(telegramId, username) {
 async function legacyRequest(query) {
   const id = Number(query.from.id);
   const welcomeCfg = await readTemplate('welcome_actions');
-  const customResponse = Array.isArray(welcomeCfg.actions) ? welcomeCfg.actions[0]?.response : '';
-  if (customResponse) await sendUiMessage({ chat_id: id, text: String(customResponse) });
+  const webTitle = String(welcomeCfg.webappButtonTitle || '🌐 Abrir WebApp de Registro');
   const current = await db.select().from(legacyGalleryAccess)
     .where(eq(legacyGalleryAccess.telegramId, id)).get();
   if (current?.status === 'AUTHORIZED') {
-    await sendUiMessage({ chat_id: id, text: '✅ Tu acceso para registrarte en la Galería ya está autorizado. Puedes continuar sin repetir la verificación.', reply_markup: { inline_keyboard: [[{ text: '🌐 Abrir WebApp de Registro', web_app: { url: REGISTRATION_WEBAPP_URL }, style: 'primary' }]] } });
+    await sendUiTemplate(id, 'welcome_allowed', TEMPLATE_DEFS.welcome_allowed.fallback, {
+      context: { user: query.from, id, estado: 'AUTORIZADO' },
+      appendButtons: [[{ text: webTitle, web_app: { url: REGISTRATION_WEBAPP_URL }, style: 'primary' }]],
+    });
     return answer(query, 'Acceso autorizado.');
   }
-  if (current?.status === 'PENDING') return answer(query, 'Tu solicitud ya está pendiente de autorización.', true);
+  if (current?.status === 'PENDING') {
+    await sendUiTemplate(id, 'welcome_denied', TEMPLATE_DEFS.welcome_denied.fallback, {
+      context: { user: query.from, id, estado: 'PENDIENTE DE AUTORIZACIÓN' },
+    });
+    return answer(query, 'Tu solicitud ya está pendiente de autorización.', true);
+  }
   const timestamp = now();
   const values = { username: String(query.from.username || ''), firstName: String(query.from.first_name || ''), status: 'PENDING', source: 'REQUEST', requestedAt: timestamp, reviewedBy: null, reviewedAt: null };
   if (current) await db.update(legacyGalleryAccess).set(values).where(eq(legacyGalleryAccess.telegramId, id)).run();
@@ -238,6 +245,9 @@ async function legacyRequest(query) {
     ]] },
   });
   await sendUiMessage({ chat_id: OWNER_ID, text: '🗂️ Nueva solicitud de acceso registrada en el tema de la modelo: ' + id });
+  await sendUiTemplate(id, 'welcome_denied', TEMPLATE_DEFS.welcome_denied.fallback, {
+    context: { user: query.from, id, estado: 'PENDIENTE DE AUTORIZACIÓN' },
+  });
   return answer(query, 'Solicitud enviada al grupo de revisión. Espera la autorización del equipo.');
 }
 
