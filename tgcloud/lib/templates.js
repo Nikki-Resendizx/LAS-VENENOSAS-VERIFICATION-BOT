@@ -4,6 +4,9 @@ import { verificationTemplates } from '../schema.js';
 
 export const TEMPLATE_DEFS = {
   welcome: { title: '👋 Bienvenida', fallback: 'Bienvenida al proceso privado de verificacion de LAS VENENOSAS.\n\nUsa /solicitar para comenzar tu solicitud.\n\nTus evidencias seran revisadas de forma privada por el equipo autorizado.' },
+  welcome_denied: { title: '🚫 Mensaje de acceso no permitido', fallback: 'Tu acceso todavía no está autorizado. Tu solicitud será enviada al equipo de revisión. Espera a que aprueben tu acceso.' },
+  welcome_allowed: { title: '✅ Mensaje de acceso permitido', fallback: '🎉 Tu acceso ha sido autorizado. Ya puedes continuar con el registro de Galería.' },
+  welcome_new: { title: '✨ Mensaje para modelos nuevas', fallback: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' },
   video: { title: '🎥 Solicitud de videomensaje', fallback: '🎥 PASO 1 DE 3 — VIDEOMENSAJE\nEnvía un videomensaje grabado directamente desde Telegram (video circular). Debes decir tu usuario, edad, nacionalidad, fecha y hora reales de grabación, y que realizas la verificación para LAS VENENOSAS.\n\nNo envíes videos de otras personas ni archivos reenviados.' },
   zing: { title: '📸 Solicitud de foto Zing', fallback: '📸 PASO 2 DE 3 — FOTO ZING\nEnvía una fotografía actual sosteniendo un papel físico donde se lea exactamente: LAS VENENOSAS. La fotografía debe permitir comprobar que tú sostienes el papel.' },
   references: { title: '🧾 Solicitud de referencias', fallback: '🧾 PASO 3 DE 3 — REFERENCIAS DE VENTAS\nEnvía las referencias que permitan validar tu actividad de ventas. Puedes incluir enlaces, nombres de usuario y una breve explicación. No compartas contraseñas, datos bancarios ni información privada de terceros.' },
