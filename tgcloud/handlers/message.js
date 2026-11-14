@@ -314,6 +314,32 @@ export default async function (message) {
     return sendUiMessage({ chat_id: chatId, text: '✅ Se agregaron/autorizaron ' + added + ' ID(s). Esas cuentas podrán elegir «Ya estoy verificada» y pasar al registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🗂️ Ver accesos', callback_data: 'legacy:list' }], [{ text: '↩️ Panel', callback_data: 'verify:list' }]] } });
   }
 
+  if (await isVerificationAdmin(telegramId) && session?.step === 'welcome_button_title') {
+    const match = text.match(/^#([rpg])\\s+(.+)$/i);
+    if (!match) return reply(chatId, 'Formato incorrecto. Usa #r para rojo, #p para azul o #g para verde. Ejemplo: #g Ya estoy Verificada');
+    const index = Number(session.requestId) - 1;
+    if (![0, 1].includes(index)) return reply(chatId, 'No se identificó el botón que deseas editar. Vuelve a abrir el editor.');
+    const cfg = await readTemplate('welcome_actions');
+    const defaults = [
+      { text: '💖 𝐘𝐚 𝐄𝐬𝐭𝐨𝐲 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐝𝐚 💖', style: 'success' },
+      { text: '✨ 𝐒𝐨𝐲 𝐍𝐮𝐞𝐯𝐚, 𝐐𝐮𝐢𝐞𝐫𝐨 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫𝐦𝐞 ✨', style: 'danger' },
+    ];
+    const actions = Array.isArray(cfg.actions) && cfg.actions.length === 2 ? cfg.actions : defaults;
+    actions[index] = { ...actions[index], text: match[2].trim(), style: ({ r: 'danger', p: 'primary', g: 'success' })[match[1].toLowerCase()] };
+    await saveTemplate('welcome_actions', { ...cfg, actions });
+    await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+    return sendUiMessage({ chat_id: chatId, text: '✅ Se actualizó únicamente el título y color del botón ' + (index + 1) + '.', reply_markup: { inline_keyboard: [[{ text: '✏️ Editar botón ' + (index + 1), callback_data: 'verify:welcome:button' + (index + 1) }], [{ text: '↩️ Volver a bienvenida', callback_data: 'verify:welcome:edit' }]] } });
+  }
+
+  if (await isVerificationAdmin(telegramId) && session?.step === 'welcome_webapp_title') {
+    const title = text.trim();
+    if (!title || title.length > 64) return reply(chatId, 'El título debe tener entre 1 y 64 caracteres.');
+    const cfg = await readTemplate('welcome_actions');
+    await saveTemplate('welcome_actions', { ...cfg, webappButtonTitle: title });
+    await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
+    return sendUiMessage({ chat_id: chatId, text: '✅ Se guardó el título del botón de la WebApp.', reply_markup: { inline_keyboard: [[{ text: '↩️ Volver al botón 1', callback_data: 'verify:welcome:button1' }]] } });
+  }
+
   if (await isVerificationAdmin(telegramId) && session?.step === 'welcome_actions') {
     const lines = text.split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
     if (lines.length !== 2) return reply(chatId, 'Envía exactamente dos líneas, una por botón, con el formato: Título | color | respuesta\\nColores: azul, verde o rojo.');
