@@ -278,7 +278,7 @@ async function legacyDecision(query, action, id) {
     const welcomeCfg = await readTemplate('welcome_actions');
     const webTitle = String(welcomeCfg.webappButtonTitle || '🌐 Abrir WebApp de Registro');
     await sendUiTemplate(telegramId, 'welcome_allowed', TEMPLATE_DEFS.welcome_allowed.fallback, {
-      context: { user: query.from, id: telegramId, estado: 'AUTORIZADO' },
+      context: { user: { id: telegramId, username: row.username, first_name: row.firstName }, id: telegramId, nombre_modelo: row.firstName, estado: 'AUTORIZADO' },
       appendButtons: [[{ text: webTitle, web_app: { url: REGISTRATION_WEBAPP_URL }, style: 'primary' }]],
     });
   } else {
