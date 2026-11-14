@@ -339,7 +339,7 @@ export default async function (message) {
       cfg.text = text;
       await saveTemplate(key, cfg);
       await db.delete(verificationSessions).where(eq(verificationSessions.telegramId, telegramId)).run();
-      return sendUiMessage({ chat_id: chatId, text: '✅ Texto guardado para: ' + TEMPLATE_DEFS[key].title, reply_markup: { inline_keyboard: [[{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:templates' }]] } });
+      return sendUiMessage({ chat_id: chatId, text: '✅ Texto guardado para: ' + (TEMPLATE_DEFS[key]?.title || key), reply_markup: { inline_keyboard: [[{ text: '✏️ Editar texto nuevamente', callback_data: 'verify:template:edittext:' + key }], [{ text: '⚙️ Volver al editor de esta plantilla', callback_data: 'verify:template:open:' + key }], [{ text: '👁️ Vista previa', callback_data: 'verify:template:preview:' + key }], [{ text: '↩️ Volver a plantillas', callback_data: 'verify:templates' }]] } });
     }
     if (session.step === 'template_buttons') {
       try {
