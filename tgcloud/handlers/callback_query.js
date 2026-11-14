@@ -265,7 +265,12 @@ async function legacyDecision(query, action, id) {
   const timestamp = now();
   await db.update(legacyGalleryAccess).set({ status, reviewedBy: Number(query.from.id), reviewedAt: timestamp }).where(eq(legacyGalleryAccess.telegramId, telegramId)).run();
   if (action === 'approve') {
-    await sendUiMessage({ chat_id: telegramId, text: '🎉 Tu acceso como modelo previamente verificada fue autorizado. Ya puedes continuar directamente con el registro de Galería.', reply_markup: { inline_keyboard: [[{ text: '🌐 Abrir WebApp de Registro', web_app: { url: REGISTRATION_WEBAPP_URL } }]] } });
+    const welcomeCfg = await readTemplate('welcome_actions');
+    const webTitle = String(welcomeCfg.webappButtonTitle || '🌐 Abrir WebApp de Registro');
+    await sendUiTemplate(telegramId, 'welcome_allowed', TEMPLATE_DEFS.welcome_allowed.fallback, {
+      context: { user: query.from, id: telegramId, estado: 'AUTORIZADO' },
+      appendButtons: [[{ text: webTitle, web_app: { url: REGISTRATION_WEBAPP_URL }, style: 'primary' }]],
+    });
   } else {
     await sendUiMessage({ chat_id: telegramId, text: 'Tu solicitud de acceso directo no fue autorizada. Si deseas participar, puedes iniciar el proceso normal de verificación con /solicitar.' });
   }
@@ -408,10 +413,8 @@ export default async function (query) {
     return sendUiMessage({ chat_id: actorId, text: '👥 ADMINISTRADORES DE APOYO\\n\\n' + (admins.length ? admins.map(row => '• ' + row.telegramId).join('\\n') : 'No hay administradores registrados.'), reply_markup: { inline_keyboard: keyboard } });
   }
   if (data === 'legacy:new') {
-    const cfg = await readTemplate('welcome_actions');
-    const custom = Array.isArray(cfg.actions) ? cfg.actions[1]?.response : '';
     await answer(query, 'Puedes comenzar tu verificación nueva.');
-    return sendUiMessage({ chat_id: actorId, text: custom || '📝 Para iniciar tu verificación desde cero, envía /solicitar.' });
+    return sendUiTemplate(actorId, 'welcome_new', TEMPLATE_DEFS.welcome_new.fallback, { context: { user: query.from, id: actorId } });
   }
   if (data.startsWith('legacy:')) {
     if (!(await isVerificationAdmin(actorId))) return answer(query, '⛔ No tienes autorización para administrar estos accesos.', true);
@@ -434,15 +437,39 @@ export default async function (query) {
   }
   try {
     if (data === 'verify:welcome:edit') {
-      await setAdminTemplateSession(actorId, 'welcome_actions', 'welcome_actions');
-      await answer(query, 'Editor de botones de bienvenida');
+      await answer(query, 'Configuración individual de bienvenida');
+      return sendUiMessage({ chat_id: actorId, text: '🎛️ CONFIGURAR BIENVENIDA\\n\\nSelecciona el botón que deseas editar. Cada botón tiene su propia configuración.', reply_markup: { inline_keyboard: [
+        [{ text: '✏️ Editar botón 1', callback_data: 'verify:welcome:button1' }],
+        [{ text: '✏️ Editar botón 2', callback_data: 'verify:welcome:button2' }],
+        [{ text: '↩️ Volver a plantillas', callback_data: 'verify:templates' }],
+      ] } });
+    }
+    if (data === 'verify:welcome:button1') {
       const cfg = await readTemplate('welcome_actions');
-      const defaults = [
-        { text: '💖 Ya estoy verificada', style: 'success', response: 'Acceso a Galería' },
-        { text: '✨ Soy nueva, quiero verificarme', style: 'danger', response: '📝 Para iniciar tu verificación desde cero, envía /solicitar.' },
-      ];
-      const actions = Array.isArray(cfg.actions) && cfg.actions.length === 2 ? cfg.actions : defaults;
-      return sendUiMessage({ chat_id: actorId, text: '🎛️ CONFIGURAR BOTONES DE BIENVENIDA\\n\\nActuales:\\n1. ' + actions[0].text + ' [' + actions[0].style + ']\\n2. ' + actions[1].text + ' [' + actions[1].style + ']\\n\\nEnvía exactamente dos líneas, una por botón:\\nTítulo | color | respuesta\\n\\nColores disponibles: azul, verde o rojo. La respuesta es el mensaje que recibirá la persona al pulsar ese botón.\\nEjemplo:\\n💖 Ya estoy verificada | verde | Tu acceso está en proceso.\\n✨ Soy nueva | rojo | Envía /solicitar para comenzar.' });
+      const a = cfg.actions?.[0] || { text: '💖 𝐘𝐚 𝐄𝐬𝐭𝐨𝐲 𝐕𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐝𝐚 💖', style: 'success' };
+      await answer(query, 'Editar botón 1');
+      return sendUiMessage({ chat_id: actorId, text: '✏️ BOTÓN 1 — YA ESTOY VERIFICADA\\n\\nTítulo actual: ' + a.text + '\\nColor actual: ' + a.style + '\\n\\nTambién puedes configurar los mensajes de acceso y el botón de la WebApp.', reply_markup: { inline_keyboard: [
+        [{ text: '🖊️ Editar título y color', callback_data: 'verify:welcome:title:1' }],
+        [{ text: '🚫 Mensaje de acceso no permitido', callback_data: 'verify:template:open:welcome_denied' }],
+        [{ text: '✅ Mensaje de acceso permitido', callback_data: 'verify:template:open:welcome_allowed' }],
+        [{ text: '🌐 Título del botón WebApp', callback_data: 'verify:welcome:webapptitle' }],
+        [{ text: '↩️ Volver', callback_data: 'verify:welcome:edit' }],
+      ] } });
+    }
+    if (data === 'verify:welcome:button2') {
+      await answer(query, 'Editar botón 2');
+      return showTemplateEditor(actorId, 'welcome_new');
+    }
+    const welcomeTitle = data.match(/^verify:welcome:title:([12])$/);
+    if (welcomeTitle) {
+      await setAdminTemplateSession(actorId, welcomeTitle[1], 'welcome_button_title');
+      await answer(query, 'Envía el nuevo título y color');
+      return sendUiMessage({ chat_id: actorId, text: '🖊️ Envía el título del botón con su color al principio.\\n\\n#r = rojo | #p = azul | #g = verde\\nEjemplo: #g Ya estoy Verificada\\n\\nSolo se modificará este botón.' });
+    }
+    if (data === 'verify:welcome:webapptitle') {
+      await setAdminTemplateSession(actorId, 'webapp', 'welcome_webapp_title');
+      await answer(query, 'Editar título del botón WebApp');
+      return sendUiMessage({ chat_id: actorId, text: '🌐 Envía el título que aparecerá en el botón que abre la WebApp de registro.' });
     }
     if (data === 'verify:templates:cancelreset') {
       await answer(query, 'Restablecimiento cancelado.');
